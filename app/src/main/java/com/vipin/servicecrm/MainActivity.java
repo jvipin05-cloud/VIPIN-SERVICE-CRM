@@ -390,12 +390,7 @@ public class MainActivity extends Activity {
         }
     }
     }
-            for(int i=0;i<l.getChildCount();i++)
-                updateCardViews(l.getChildAt(i),field,value);
-        } else if(view instanceof ScrollView) {
-            updateCardViews(((ScrollView)view).getChildAt(0),field,value);
-        }
-    }
+            
 
     private boolean matches(JSONObject r,int month,String year) {
         Calendar c=parseDate(r.optString("DATE"));
