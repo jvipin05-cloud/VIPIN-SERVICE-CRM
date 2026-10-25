@@ -369,13 +369,27 @@ public class MainActivity extends Activity {
     }
 
     private void updateCardViews(View view,String field,double value) {
-        if(view instanceof LinearLayout) {
-            LinearLayout l=(LinearLayout)view;
-            if(field.equals(String.valueOf(l.getTag()))) {
-                if(l.getChildCount()>1 && l.getChildAt(1) instanceof TextView) {
-                    ((TextView)l.getChildAt(1)).setText("₹ "+money(value));
-                }
+    if(view instanceof LinearLayout) {
+        LinearLayout l=(LinearLayout)view;
+
+        if(field.equals(String.valueOf(l.getTag()))) {
+            if(l.getChildCount()>1 &&
+                    l.getChildAt(1) instanceof TextView) {
+                ((TextView)l.getChildAt(1))
+                    .setText("₹ "+money(value));
             }
+        }
+    }
+
+    if(view instanceof android.view.ViewGroup) {
+        android.view.ViewGroup group =
+                (android.view.ViewGroup)view;
+
+        for(int i=0;i<group.getChildCount();i++) {
+            updateCardViews(group.getChildAt(i),field,value);
+        }
+    }
+    }
             for(int i=0;i<l.getChildCount();i++)
                 updateCardViews(l.getChildAt(i),field,value);
         } else if(view instanceof ScrollView) {
