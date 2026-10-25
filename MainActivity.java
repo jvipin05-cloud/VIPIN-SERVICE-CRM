@@ -113,6 +113,7 @@ public class MainActivity extends Activity {
     // MAIN HOME PAGE
 
     private void showCRM() {
+        listArea = null;
         ScrollView scroll = new ScrollView(this);
         root = vertical();
         root.setPadding(14,14,14,20);
