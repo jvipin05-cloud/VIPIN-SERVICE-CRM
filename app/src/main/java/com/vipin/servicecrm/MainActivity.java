@@ -1,6 +1,8 @@
 package com.vipin.servicecrm;
 
 import android.app.Activity;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.content.Intent;
@@ -14,6 +16,7 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.AlphaAnimation;
@@ -86,7 +89,12 @@ public class MainActivity extends Activity {
         logo.setBackground(circle(CYAN));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(104),dp(104));
         lp.gravity = Gravity.CENTER;
+        logo.setElevation(dp(22));
+        logo.setRotationY(-24f);
         page.addView(logo, lp);
+        logo.animate().rotationY(0f).rotationX(0f).scaleX(1.08f).scaleY(1.08f)
+                .setDuration(850).setInterpolator(new DecelerateInterpolator()).withEndAction(() ->
+                logo.animate().scaleX(1f).scaleY(1f).setDuration(260).start()).start();
         TextView title = text("VIPIN SERVICE CRM", 25, WHITE, true);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0,dp(22),0,dp(8));
@@ -138,7 +146,12 @@ public class MainActivity extends Activity {
         header.addView(subtitle);
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1,-2);
         hp.setMargins(dp(14),dp(12),dp(14),dp(10));
+        header.setElevation(dp(18));
+        header.setTranslationZ(dp(8));
+        header.setRotationX(2.5f);
         base.addView(header,hp);
+        header.animate().rotationX(0f).translationZ(dp(4)).setDuration(650)
+                .setInterpolator(new DecelerateInterpolator()).start();
         content = vertical();
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -169,9 +182,12 @@ public class MainActivity extends Activity {
             LinearLayout item = vertical();
             item.setGravity(Gravity.CENTER);
             TextView ico = text(icons[i],23,n.equals(page)?BLUE:Color.GRAY,true);
+            ico.setShadowLayer(n.equals(page)?dp(8):0,0,dp(2),n.equals(page)?CYAN:Color.TRANSPARENT);
             TextView label = text(n,9,n.equals(page)?BLUE:Color.GRAY,true);
             item.addView(ico); item.addView(label);
             item.setPadding(dp(8),0,dp(8),0);
+            item.setBackground(round(n.equals(page)?Color.rgb(235,244,255):WHITE,dp(16),Color.TRANSPARENT,0));
+            item.setElevation(n.equals(page)?dp(7):0);
             nav.addView(item,new LinearLayout.LayoutParams(0,-1,1));
             item.setOnClickListener(v->{tap(v);renderPage(n);});
         }
@@ -349,7 +365,7 @@ public class MainActivity extends Activity {
                     if(existing==null)e.setText(new SimpleDateFormat("dd-MM-yyyy",Locale.getDefault()).format(new Date()));
                 }
                 if(existing!=null)e.setText(safe(existing,field,""));
-                form.addView(e,new LinearLayout.LayoutParams(-1,dp("ADDRESS".equals(field)||"REMARKS".equals(field)?86:52)));
+                form.addView(e,new LinearLayout.LayoutParams(-1,dp(("ADDRESS".equals(field)||"REMARKS".equals(field)||"SPARE PARTS".equals(field))?86:52)));
             }
         }
         Spinner finalPayment=payment;
@@ -453,7 +469,10 @@ public class MainActivity extends Activity {
     }
     private LinearLayout card(int color){
         LinearLayout l=vertical();l.setBackground(round(color,dp(22),Color.rgb(225,233,247),dp(1)));
-        l.setElevation(dp(5));return l;
+        l.setElevation(dp(10));
+        l.setTranslationZ(dp(2));
+        l.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+        return l;
     }
     private Button button(String label){
         Button b=new Button(this);b.setText(label);b.setTextColor(WHITE);b.setTextSize(13);b.setAllCaps(false);
@@ -466,16 +485,25 @@ public class MainActivity extends Activity {
     }
     private View actionCard(String label,int color,Runnable action){
         TextView t=text(label,12,WHITE,true);t.setGravity(Gravity.CENTER);t.setPadding(dp(5),dp(8),dp(5),dp(8));
-        t.setBackground(gradient(new int[]{color,BLUE},dp(17)));t.setElevation(dp(5));
+        t.setBackground(gradient(new int[]{color,CYAN,BLUE},dp(17)));t.setElevation(dp(12));
+        t.setTranslationZ(dp(3));
         t.setOnClickListener(v->{tap(v);action.run();});return t;
     }
     private void tap(View v){
-        ScaleAnimation a=new ScaleAnimation(1f,0.96f,1f,0.96f,Animation.RELATIVE_TO_SELF,.5f,Animation.RELATIVE_TO_SELF,.5f);
-        a.setDuration(90);a.setRepeatCount(1);a.setRepeatMode(Animation.REVERSE);v.startAnimation(a);
+        // Faux-3D press: compress, tilt, then spring back with depth.
+        v.animate().cancel();
+        v.setCameraDistance(dp(900));
+        v.animate().scaleX(0.94f).scaleY(0.94f).rotationX(7f).translationZ(dp(1))
+                .setDuration(95).withEndAction(() ->
+                v.animate().scaleX(1f).scaleY(1f).rotationX(0f).translationZ(dp(4))
+                        .setDuration(220).setInterpolator(new DecelerateInterpolator()).start()).start();
     }
     private void enter(View v){
-        v.setAlpha(0f);v.setTranslationY(dp(18));
-        v.animate().alpha(1f).translationY(0).setDuration(380).setInterpolator(new DecelerateInterpolator()).start();
+        // Layered entrance motion gives cards a lifted 3D arrival.
+        v.setCameraDistance(dp(1200));
+        v.setAlpha(0f);v.setTranslationY(dp(26));v.setRotationX(9f);v.setScaleX(0.97f);v.setScaleY(0.97f);
+        v.animate().alpha(1f).translationY(0).rotationX(0f).scaleX(1f).scaleY(1f)
+                .setDuration(520).setInterpolator(new DecelerateInterpolator()).start();
     }
     private void shake(View v){
         TranslateAnimation a=new TranslateAnimation(-dp(8),dp(8),0,0);a.setDuration(55);a.setRepeatCount(3);a.setRepeatMode(Animation.REVERSE);v.startAnimation(a);
@@ -505,4 +533,4 @@ public class MainActivity extends Activity {
         p.setMargins(l,t,r,b);return p;
     }
     private void onClick(View v,Runnable r){v.setOnClickListener(x->r.run());}
-}
+                                                         }
