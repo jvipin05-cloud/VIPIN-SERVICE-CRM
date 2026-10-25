@@ -1,469 +1,508 @@
 package com.vipin.servicecrm;
 
-import android.app.*;
-import android.os.Bundle;
-import android.content.*;
-import android.database.Cursor;
-import android.graphics.*;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.provider.OpenableColumns;
-import android.view.*;
-import android.view.animation.*;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.view.animation.DecelerateInterpolator;
+import android.view.animation.ScaleAnimation;
+import android.view.animation.TranslateAnimation;
 import android.widget.*;
-import org.json.*;
-import java.io.*;
-import java.security.MessageDigest;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private static final String PREF = "vipin_service_crm";
-    private static final String RECORDS = "records";
-    private static final String PASSWORD = "password";
-    private static final String[] FIELDS = {
-        "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
-        "CUSTOMER NAME", "MOBILE NUMBER", "ADDRESS", "SPARE PARTS",
-        "AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
-        "PAYMENT MODE", "REMARKS"
+    private static final String PREF = "VIPIN_SERVICE_CRM_DATA";
+    private static final String RECORDS_KEY = "records";
+    private static final String PASS_KEY = "app_password";
+    private static final int EXPORT_REQUEST = 701;
+    private final String[] FIELDS = {
+            "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
+            "CUSTOMER NAME", "MOBILE NUMBER", "ADDRESS", "SPARE PARTS",
+            "AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
+            "PAYMENT MODE", "REMARKS"
     };
-    private static final String[] PAYMENTS = {"CASH", "UPI", "PS UPI", "RKS UPI"};
-    private final int[] COLORS = {0xFF142B55, 0xFF2563EB, 0xFF0F9D8A, 0xFFF4F7FC};
+    private final String[] PAYMENTS = {"CASH", "UPI", "PS UPI", "RKS UPI"};
+    private final int NAVY = Color.rgb(8, 22, 55);
+    private final int BLUE = Color.rgb(28, 91, 235);
+    private final int CYAN = Color.rgb(48, 190, 255);
+    private final int PALE = Color.rgb(239, 245, 255);
+    private final int WHITE = Color.WHITE;
     private SharedPreferences prefs;
-    private JSONArray records = new JSONArray();
-    private LinearLayout root, content;
-    private EditText[] inputs = new EditText[FIELDS.length];
-    private Spinner paymentSpinner;
-    private String photoUri = "";
-    private int editing = -1;
-    private String currentFilter = "";
+    private JSONArray records;
+    private LinearLayout base, content, nav;
+    private String currentPage = "DASHBOARD";
+    private EditText searchBox;
+    private int editingIndex = -1;
+    private String reportMonth = "";
+    private String reportYear = "";
 
-    @Override public void onCreate(Bundle b) {
-        super.onCreate(b);
+    @Override public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(PREF, MODE_PRIVATE);
-        loadRecords();
-        if (prefs.getString(PASSWORD, "").isEmpty()) {
-            prefs.edit().putString(PASSWORD, hash("1234")).apply();
-        }
+        records = loadRecords();
+        getWindow().setStatusBarColor(NAVY);
+        getWindow().setNavigationBarColor(Color.rgb(245,247,252));
+        getWindow().getDecorView().setSystemUiVisibility(0);
         showLogin();
     }
 
-    private String hash(String s) {
-        try {
-            byte[] d = MessageDigest.getInstance("SHA-256").digest(s.getBytes("UTF-8"));
-            StringBuilder out = new StringBuilder();
-            for (byte x : d) out.append(String.format(Locale.US, "%02x", x));
-            return out.toString();
-        } catch (Exception e) { return s; }
+    private JSONArray loadRecords() {
+        try { return new JSONArray(prefs.getString(RECORDS_KEY, "[]")); }
+        catch (Exception e) { return new JSONArray(); }
     }
+    private void saveRecords() {
+        prefs.edit().putString(RECORDS_KEY, records.toString()).apply();
+    }
+    private String password() { return prefs.getString(PASS_KEY, "1234"); }
 
     private void showLogin() {
-        LinearLayout page = basePage();
+        LinearLayout page = vertical();
         page.setGravity(Gravity.CENTER);
-        LinearLayout panel = card();
-        panel.setPadding(24, 28, 24, 28);
-        TextView title = label("VIPIN SERVICE CRM", 25, 0xFFFFFFFF, true);
+        page.setPadding(dp(28),dp(24),dp(28),dp(24));
+        page.setBackground(gradient(new int[]{NAVY, BLUE, Color.rgb(9,36,94)}, 0));
+        TextView logo = text("V", 54, WHITE, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setBackground(circle(CYAN));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(104),dp(104));
+        lp.gravity = Gravity.CENTER;
+        page.addView(logo, lp);
+        TextView title = text("VIPIN SERVICE CRM", 25, WHITE, true);
         title.setGravity(Gravity.CENTER);
-        panel.addView(title);
-        TextView sub = label("SECURE LOGIN", 13, 0xFFDCE7FF, true);
+        title.setPadding(0,dp(22),0,dp(8));
+        page.addView(title);
+        TextView sub = text("SERVICE  •  COLLECTION  •  RECORDS", 12, Color.rgb(205,225,255), true);
         sub.setGravity(Gravity.CENTER);
-        panel.addView(sub);
-        EditText pass = new EditText(this);
-        pass.setSingleLine(true);
-        pass.setHint("ENTER PASSWORD");
-        pass.setHintTextColor(0xFFB9C7DD);
-        pass.setTextColor(Color.WHITE);
-        pass.setInputType(129);
-        panel.addView(pass, params());
-        Button login = button("LOGIN");
-        panel.addView(login, params());
-        TextView hint = label("FIRST LOGIN PASSWORD: 1234", 12, 0xFFDCE7FF, false);
-        hint.setGravity(Gravity.CENTER);
-        panel.addView(hint);
+        page.addView(sub);
+        EditText pin = new EditText(this);
+        pin.setSingleLine(true);
+        pin.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        pin.setHint("ENTER PASSWORD");
+        pin.setHintTextColor(Color.LTGRAY);
+        pin.setTextColor(WHITE);
+        pin.setPadding(dp(18),dp(14),dp(18),dp(14));
+        pin.setBackground(round(Color.rgb(34,65,125), dp(16), Color.rgb(100,155,255), dp(1)));
+        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1,dp(56));
+        ep.topMargin = dp(32);
+        page.addView(pin,ep);
+        Button login = button("UNLOCK CRM");
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1,dp(56));
+        bp.topMargin = dp(16);
+        page.addView(login,bp);
         login.setOnClickListener(v -> {
-            String saved = prefs.getString(PASSWORD, hash("1234"));
-            if (hash(pass.getText().toString()).equals(saved)) showHome();
-            else toast("WRONG PASSWORD");
+            if (pin.getText().toString().equals(password())) {
+                tap(v); showCRM();
+            } else {
+                pin.setError("WRONG PASSWORD");
+                shake(pin);
+            }
         });
-        page.addView(panel, new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = text("DEFAULT PASSWORD: 1234", 11, Color.rgb(190,210,245), false);
+        hint.setGravity(Gravity.CENTER);
+        hint.setPadding(0,dp(18),0,0);
+        page.addView(hint);
         setContentView(page);
+        enter(page);
     }
 
-    private void showHome() {
-        root = basePage();
-        LinearLayout header = card();
-        header.setOrientation(LinearLayout.VERTICAL);
-        TextView title = label("VIPIN SERVICE CRM", 23, Color.WHITE, true);
+    private void showCRM() {
+        base = vertical();
+        base.setBackgroundColor(PALE);
+        LinearLayout header = vertical();
+        header.setPadding(dp(20),dp(22),dp(20),dp(20));
+        header.setBackground(gradient(new int[]{NAVY, Color.rgb(18,54,125), BLUE}, dp(26)));
+        TextView title = text("VIPIN SERVICE CRM", 24, WHITE, true);
         header.addView(title);
-        TextView subtitle = label("SERVICE • COLLECTION • RECORDS", 12, 0xFFDCE7FF, false);
+        TextView subtitle = text("✦  SERVICE  •  COLLECTION  •  RECORDS", 12, Color.rgb(205,225,255), true);
+        subtitle.setPadding(0,dp(7),0,0);
         header.addView(subtitle);
-        root.addView(header, params());
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1,-2);
+        hp.setMargins(dp(14),dp(12),dp(14),dp(10));
+        base.addView(header,hp);
+        content = vertical();
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.addView(content);
+        base.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setPadding(dp(5),dp(8),dp(5),dp(8));
+        nav.setBackgroundColor(WHITE);
+        base.addView(nav,new LinearLayout.LayoutParams(-1,dp(68)));
+        setContentView(base);
+        renderPage("DASHBOARD");
+    }
+
+    private void renderPage(String page) {
+        currentPage = page;
+        content.removeAllViews();
+        nav.removeAllViews();
+        if ("DASHBOARD".equals(page)) dashboard();
+        else if ("RECORDS".equals(page)) recordsPage();
+        else if ("REPORTS".equals(page)) reportsPage();
+        else settingsPage();
+        String[] names = {"DASHBOARD","RECORDS","REPORTS","SETTINGS"};
+        String[] icons = {"⌂","▤","▥","⚙"};
+        for (int i=0;i<names.length;i++) {
+            final String n = names[i];
+            LinearLayout item = vertical();
+            item.setGravity(Gravity.CENTER);
+            TextView ico = text(icons[i],23,n.equals(page)?BLUE:Color.GRAY,true);
+            TextView label = text(n,9,n.equals(page)?BLUE:Color.GRAY,true);
+            item.addView(ico); item.addView(label);
+            item.setPadding(dp(8),0,dp(8),0);
+            nav.addView(item,new LinearLayout.LayoutParams(0,-1,1));
+            item.setOnClickListener(v->{tap(v);renderPage(n);});
+        }
+        enter(content);
+    }
+
+    private void dashboard() {
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button add = button("+ NEW RECORD");
-        Button change = button("PASSWORD");
-        Button export = button("EXPORT CSV");
-        actions.addView(add, new LinearLayout.LayoutParams(0, dp(48), 1));
-        actions.addView(change, new LinearLayout.LayoutParams(0, dp(48), 1));
-        actions.addView(export, new LinearLayout.LayoutParams(0, dp(48), 1));
-        root.addView(actions, params());
-        add.setOnClickListener(v -> showForm(-1));
-        change.setOnClickListener(v -> changePassword());
-        export.setOnClickListener(v -> exportCsv());
-
-        EditText search = new EditText(this);
-        search.setSingleLine(true);
-        search.setHint("SEARCH BILL / CUSTOMER / MOBILE / PRODUCT");
-        search.setTextColor(0xFF17233B);
-        search.setBackground(round(0xFFFFFFFF, 14));
-        search.setPadding(dp(14), 0, dp(14), 0);
-        root.addView(search, new LinearLayout.LayoutParams(-1, dp(50)));
-        LinearLayout totals = new LinearLayout(this);
-        totals.setOrientation(LinearLayout.VERTICAL);
-        root.addView(totals, params());
-        content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        root.addView(content, params());
-        search.addTextChangedListener(new android.text.TextWatcher() {
+        actions.setPadding(dp(14),dp(5),dp(14),dp(8));
+        actions.addView(actionCard("+ NEW RECORD", BLUE, () -> { editingIndex=-1; recordForm(null); }),new LinearLayout.LayoutParams(0,dp(58),1));
+        actions.addView(actionCard("PASSWORD", Color.rgb(30,119,220), () -> changePassword()),new LinearLayout.LayoutParams(0,dp(58),1));
+        actions.addView(actionCard("EXPORT CSV", Color.rgb(13,151,177), () -> exportCsv()),new LinearLayout.LayoutParams(0,dp(58),1));
+        content.addView(actions);
+        searchBox = new EditText(this);
+        searchBox.setSingleLine(true);
+        searchBox.setTextSize(14);
+        searchBox.setHint("⌕  SEARCH BILL / CUSTOMER / MOBILE / PRODUCT");
+        searchBox.setPadding(dp(16),dp(12),dp(16),dp(12));
+        searchBox.setBackground(round(WHITE,dp(18),Color.rgb(220,230,245),dp(1)));
+        LinearLayout.LayoutParams sp = margins(-1,-2,dp(14),dp(6),dp(14),dp(12));
+        content.addView(searchBox,sp);
+        searchBox.addTextChangedListener(new android.text.TextWatcher() {
             public void beforeTextChanged(CharSequence s,int st,int c,int a){}
-            public void onTextChanged(CharSequence s,int st,int before,int count) {
-                currentFilter = s.toString().toLowerCase(Locale.ROOT);
-                renderRecords(totals, content);
-            }
+            public void onTextChanged(CharSequence s,int st,int before,int count){showRecordCards(s.toString(), content);}
             public void afterTextChanged(android.text.Editable e){}
         });
-        renderRecords(totals, content);
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        // Rebuild page inside a scroll container.
-        root.removeAllViews();
-        wrapper.addView(header, params());
-        wrapper.addView(actions, params());
-        wrapper.addView(search, params());
-        wrapper.addView(totals, params());
-        wrapper.addView(content, params());
-        scroll.addView(wrapper);
-        scroll.setFillViewport(true);
-        scroll.setBackgroundColor(COLORS[3]);
-        setContentView(scroll);
-        wrapper.setPadding(dp(16), dp(18), dp(16), dp(28));
-        wrapper.setAnimation(AnimationUtils.loadAnimation(this, android.R.anim.fade_in));
+        LinearLayout totals = card(NAVY);
+        totals.setPadding(dp(20),dp(18),dp(20),dp(18));
+        TextView heading = text("LAST MONTH TOTAL",19,WHITE,true);
+        totals.addView(heading);
+        String[] amountFields = {"AMOUNT","SPARE AMOUNT","WARRANTY AMOUNT","NET AMOUNT"};
+        for(String f:amountFields){
+            TextView tv = text(f+"  :  ₹"+money(lastMonthTotal(f)),15,WHITE,true);
+            tv.setPadding(0,dp(12),0,0);
+            totals.addView(tv);
+            countUp(tv, lastMonthTotal(f));
+        }
+        content.addView(totals,margins(-1,-2,dp(14),dp(4),dp(14),dp(16)));
+        TextView recent = text("RECENT RECORDS",17,NAVY,true);
+        recent.setPadding(dp(18),dp(8),0,dp(8));
+        content.addView(recent);
+        showRecordCards("",content);
     }
 
-    private void renderRecords(LinearLayout totals, LinearLayout list) {
-        totals.removeAllViews();
-        list.removeAllViews();
-        String month = new SimpleDateFormat("yyyy-MM", Locale.US).format(new Date());
-        String lastMonth = new SimpleDateFormat("yyyy-MM", Locale.US).format(
-            new Date(System.currentTimeMillis() - 28L * 24 * 60 * 60 * 1000));
-        double[] sums = new double[4];
-        int shown = 0;
-        for (int i = records.length() - 1; i >= 0; i--) {
-            JSONObject r = records.optJSONObject(i);
-            if (r == null) continue;
-            String date = r.optString("DATE", "");
-            String hay = "";
-            for (String f : FIELDS) hay += " " + r.optString(f, "");
-            if (!currentFilter.isEmpty() && !hay.toLowerCase(Locale.ROOT).contains(currentFilter)) continue;
-            shown++;
-            if (date.startsWith(lastMonth)) {
-                sums[0] += number(r.optString("AMOUNT"));
-                sums[1] += number(r.optString("SPARE AMOUNT"));
-                sums[2] += number(r.optString("WARRANTY AMOUNT"));
-                sums[3] += number(r.optString("NET AMOUNT"));
-            }
-            LinearLayout item = new LinearLayout(this);
-            item.setOrientation(LinearLayout.VERTICAL);
-            item.setPadding(dp(14), dp(12), dp(14), dp(12));
-            item.setBackground(round(Color.WHITE, 16));
-            TextView name = label(r.optString("CUSTOMER NAME", "NO NAME"), 17, COLORS[0], true);
-            item.addView(name);
-            item.addView(label("BILL: " + r.optString("BILL NUMBER") + "   DATE: " + date, 12, 0xFF64748B, false));
-            item.addView(label("PRODUCT: " + r.optString("PRODUCT NAME"), 13, 0xFF334155, false));
-            item.addView(label("AMOUNT: " + r.optString("AMOUNT") +
-                "   SPARE: " + r.optString("SPARE AMOUNT") +
-                "   WARRANTY: " + r.optString("WARRANTY AMOUNT") +
-                "   NET: " + r.optString("NET AMOUNT"), 12, 0xFF0F766E, true));
-            LinearLayout row = new LinearLayout(this);
-            Button edit = smallButton("EDIT");
-            Button pdf = smallButton("PDF");
-            Button del = smallButton("DELETE");
-            row.addView(edit, new LinearLayout.LayoutParams(0, dp(40), 1));
-            row.addView(pdf, new LinearLayout.LayoutParams(0, dp(40), 1));
-            row.addView(del, new LinearLayout.LayoutParams(0, dp(40), 1));
-            item.addView(row);
-            final int index = i;
-            edit.setOnClickListener(v -> showForm(index));
-            pdf.setOnClickListener(v -> createPdf(index));
-            del.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("DELETE RECORD?")
-                .setMessage("THIS RECORD WILL BE DELETED.")
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("DELETE", (d,w) -> {
-                    JSONArray next = new JSONArray();
-                    for (int j=0;j<records.length();j++) if (j != index) next.put(records.optJSONObject(j));
-                    records = next; saveRecords(); showHome();
-                }).show());
-            LinearLayout.LayoutParams ip = params();
-            ip.bottomMargin = dp(10);
-            list.addView(item, ip);
+    private void showRecordCards(String query, LinearLayout parent) {
+        // Remove only record-list views after the dashboard summary.
+        int start = parent == content ? Math.min(parent.getChildCount(),4) : 0;
+        if (parent == content) {
+            while(parent.getChildCount()>start) parent.removeViewAt(start);
+        } else parent.removeAllViews();
+        int found=0;
+        for(int i=records.length()-1;i>=0;i--){
+            JSONObject o=records.optJSONObject(i); if(o==null)continue;
+            if(!matches(o,query))continue;
+            found++;
+            final int index=i;
+            LinearLayout c=card(WHITE);
+            c.setPadding(dp(15),dp(14),dp(15),dp(14));
+            TextView name=text(safe(o,"CUSTOMER NAME","CUSTOMER"),16,NAVY,true);
+            c.addView(name);
+            TextView detail=text("BILL: "+safe(o,"BILL NUMBER","-")+"   •   "+safe(o,"DATE","-"),12,Color.GRAY,true);
+            detail.setPadding(0,dp(5),0,0); c.addView(detail);
+            TextView amt=text("NET AMOUNT  ₹"+safe(o,"NET AMOUNT","0"),14,BLUE,true);
+            amt.setPadding(0,dp(7),0,0); c.addView(amt);
+            LinearLayout row=new LinearLayout(this);
+            Button edit=smallButton("EDIT"), del=smallButton("DELETE");
+            row.addView(edit);row.addView(del);
+            c.addView(row);
+            edit.setOnClickListener(v->{tap(v);editingIndex=index;recordForm(o);});
+            del.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("DELETE RECORD?")
+                    .setMessage("This record will be deleted from this phone.")
+                    .setNegativeButton("CANCEL",null).setPositiveButton("DELETE",(d,w)->{
+                        JSONArray next=new JSONArray();
+                        for(int k=0;k<records.length();k++)if(k!=index)next.put(records.optJSONObject(k));
+                        records=next;saveRecords();renderPage(currentPage);
+                    }).show());
+            parent.addView(c,margins(-1,-2,dp(14),dp(5),dp(14),dp(7)));
+            enter(c);
         }
-        LinearLayout summary = card();
-        summary.setOrientation(LinearLayout.VERTICAL);
-        summary.addView(label("LAST MONTH TOTAL", 17, Color.WHITE, true));
-        String[] names = {"AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"};
-        for (int i=0;i<4;i++) summary.addView(label(names[i] + " : " + money(sums[i]), 14, Color.WHITE, false));
-        totals.addView(summary, params());
-        if (shown == 0) {
-            TextView empty = label("NO RECORD FOUND", 15, 0xFF64748B, true);
+        if(found==0){
+            TextView empty=text("NO RECORD FOUND",15,Color.GRAY,true);
             empty.setGravity(Gravity.CENTER);
-            list.addView(empty, params());
+            empty.setPadding(0,dp(24),0,dp(24));
+            parent.addView(empty);
         }
     }
 
-    private void showForm(int index) {
-        editing = index;
-        photoUri = "";
-        JSONObject old = index >= 0 ? records.optJSONObject(index) : null;
-        LinearLayout page = basePage();
-        TextView heading = label(index >= 0 ? "EDIT RECORD" : "NEW SERVICE RECORD", 22, COLORS[0], true);
-        page.addView(heading);
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(0, dp(8), 0, dp(20));
-        for (int i=0;i<FIELDS.length;i++) {
-            TextView l = label(FIELDS[i], 12, 0xFF475569, true);
-            form.addView(l);
-            if (FIELDS[i].equals("PAYMENT MODE")) {
-                paymentSpinner = new Spinner(this);
-                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, PAYMENTS);
-                paymentSpinner.setAdapter(adapter);
-                String value = old == null ? "CASH" : old.optString(FIELDS[i], "CASH");
-                for (int j=0;j<PAYMENTS.length;j++) if (PAYMENTS[j].equals(value)) paymentSpinner.setSelection(j);
-                form.addView(paymentSpinner, params());
-            } else {
-                EditText e = new EditText(this);
-                inputs[i] = e;
-                e.setSingleLine(false);
-                e.setMinLines(FIELDS[i].equals("ADDRESS") || FIELDS[i].equals("REMARKS") ? 2 : 1);
-                e.setTextColor(0xFF17233B);
-                e.setHint("ENTER " + FIELDS[i]);
-                e.setBackground(round(Color.WHITE, 12));
-                e.setPadding(dp(12), dp(8), dp(12), dp(8));
-                if (FIELDS[i].equals("DATE")) {
-                    e.setFocusable(false);
-                    e.setOnClickListener(v -> pickDate(e));
-                    e.setText(old == null ? today() : old.optString(FIELDS[i], today()));
-                } else {
-                    e.setText(old == null ? "" : old.optString(FIELDS[i], ""));
-                    if (FIELDS[i].contains("AMOUNT") || FIELDS[i].equals("AMC") || FIELDS[i].equals("COLLECTION"))
-                        e.setInputType(8194);
-                    if (FIELDS[i].equals("MOBILE NUMBER")) e.setInputType(3);
-                }
-                form.addView(e, params());
-            }
-        }
-        Button photo = button("ATTACH PHOTO");
-        Button save = button(index >= 0 ? "UPDATE RECORD" : "SAVE RECORD");
-        Button back = smallButton("BACK");
-        form.addView(photo, params());
-        form.addView(save, params());
-        form.addView(back, params());
-        photo.setOnClickListener(v -> {
-            Intent in = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            in.setType("image/*"); in.addCategory(Intent.CATEGORY_OPENABLE);
-            startActivityForResult(in, 101);
+    private boolean matches(JSONObject o,String q){
+        if(q==null||q.trim().isEmpty())return true;
+        String all=o.toString().toLowerCase(Locale.ROOT);
+        return all.contains(q.toLowerCase(Locale.ROOT));
+    }
+
+    private void recordsPage() {
+        TextView h=text("ALL SERVICE RECORDS",19,NAVY,true);
+        h.setPadding(dp(18),dp(10),0,dp(8));content.addView(h);
+        EditText s=new EditText(this);s.setSingleLine(true);s.setHint("SEARCH RECORDS...");
+        s.setPadding(dp(15),dp(10),dp(15),dp(10));s.setBackground(round(WHITE,dp(15),Color.LTGRAY,dp(1)));
+        content.addView(s,margins(-1,-2,dp(14),0,dp(14),dp(8)));
+        LinearLayout list=vertical();content.addView(list);
+        showRecordCards("",list);
+        s.addTextChangedListener(new android.text.TextWatcher(){
+            public void beforeTextChanged(CharSequence x,int a,int c,int f){}
+            public void onTextChanged(CharSequence x,int a,int b,int c){showRecordCards(x.toString(),list);}
+            public void afterTextChanged(android.text.Editable e){}
         });
-        save.setOnClickListener(v -> saveForm());
-        back.setOnClickListener(v -> showHome());
-        scroll.addView(form);
-        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-        setContentView(page);
     }
 
-    private void saveForm() {
-        JSONObject obj = new JSONObject();
-        try {
-            for (int i=0;i<FIELDS.length;i++) {
-                String value = FIELDS[i].equals("PAYMENT MODE") ?
-                    paymentSpinner.getSelectedItem().toString() :
-                    inputs[i].getText().toString().trim();
-                if (FIELDS[i].equals("DATE") && value.isEmpty()) value = today();
-                obj.put(FIELDS[i], value);
-            }
-            obj.put("PHOTO_URI", photoUri);
-            JSONArray next = new JSONArray();
-            for (int i=0;i<records.length();i++) if (i != editing) next.put(records.optJSONObject(i));
-            next.put(obj);
-            records = next;
-            saveRecords();
-            toast("RECORD SAVED");
-            showHome();
-        } catch (Exception e) { toast("SAVE ERROR: " + e.getMessage()); }
+    private void reportsPage() {
+        TextView h=text("MONTHLY REPORTS",20,NAVY,true);
+        h.setPadding(dp(18),dp(10),0,dp(10));content.addView(h);
+        Calendar cal=Calendar.getInstance();
+        Spinner month=new Spinner(this), year=new Spinner(this);
+        String[] months=new String[12];for(int i=0;i<12;i++)months[i]=new java.text.DateFormatSymbols().getMonths()[i];
+        String[] years=new String[10];for(int i=0;i<10;i++)years[i]=""+(cal.get(Calendar.YEAR)-5+i);
+        month.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,months));
+        year.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,years));
+        month.setSelection(cal.get(Calendar.MONTH));
+        year.setSelection(5);
+        LinearLayout selectors=new LinearLayout(this);selectors.addView(month,new LinearLayout.LayoutParams(0,dp(52),1));selectors.addView(year,new LinearLayout.LayoutParams(0,dp(52),1));
+        content.addView(selectors,margins(-1,-2,dp(14),0,dp(14),dp(12)));
+        LinearLayout result=card(WHITE);result.setPadding(dp(18),dp(16),dp(18),dp(16));content.addView(result,margins(-1,-2,dp(14),0,dp(14),dp(12)));
+        Runnable update=()->{
+            result.removeAllViews();
+            int m=month.getSelectedItemPosition()+1;String y=year.getSelectedItem().toString();
+            result.addView(text(months[m-1].toUpperCase()+" "+y,17,NAVY,true));
+            String[] fs={"AMOUNT","SPARE AMOUNT","WARRANTY AMOUNT","NET AMOUNT","AMC","COLLECTION"};
+            for(String f:fs){TextView t=text(f+"  :  ₹"+money(monthTotal(f,m,y)),14,BLUE,true);t.setPadding(0,dp(13),0,0);result.addView(t);}
+            TextView count=text("TOTAL RECORDS  :  "+countMonth(m,y),14,NAVY,true);count.setPadding(0,dp(14),0,0);result.addView(count);
+        };
+        month.setOnItemSelectedListener(new SimpleSelect(update));year.setOnItemSelectedListener(new SimpleSelect(update));update.run();
     }
 
-    private void pickDate(EditText target) {
-        Calendar c = Calendar.getInstance();
-        new DatePickerDialog(this, (v,y,m,d) ->
-            target.setText(String.format(Locale.US, "%04d-%02d-%02d", y, m+1, d)),
-            c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+    private class SimpleSelect implements AdapterView.OnItemSelectedListener{
+        Runnable r;SimpleSelect(Runnable x){r=x;}
+        public void onItemSelected(AdapterView<?> a,View v,int p,long id){r.run();}
+        public void onNothingSelected(AdapterView<?> a){}
     }
 
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
-            Uri uri = data.getData();
-            if (requestCode == 101) {
-                try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
-                photoUri = uri.toString();
-                toast("PHOTO ATTACHED");
-            } else if (requestCode == 102 && pendingPdfIndex >= 0) {
-                writePdf(uri, pendingPdfIndex);
-                pendingPdfIndex = -1;
-            } else if (requestCode == 103) {
-                writeCsv(uri);
+    private void settingsPage() {
+        TextView h=text("SETTINGS",20,NAVY,true);h.setPadding(dp(18),dp(12),0,dp(10));content.addView(h);
+        settingButton("CHANGE APP PASSWORD",()->changePassword());
+        settingButton("EXPORT ALL RECORDS (CSV)",()->exportCsv());
+        settingButton("ABOUT VIPIN SERVICE CRM",()->new AlertDialog.Builder(this).setTitle("VIPIN SERVICE CRM").setMessage("Offline service and collection record manager. Your records are stored on this phone.").setPositiveButton("OK",null).show());
+    }
+    private void settingButton(String label,Runnable r){
+        Button b=button(label);content.addView(b,margins(-1,dp(54),dp(16),dp(7),dp(16),dp(7)));b.setOnClickListener(v->{tap(v);r.run();});
+    }
+
+    private void recordForm(JSONObject existing) {
+        ScrollView sc=new ScrollView(this);
+        LinearLayout form=vertical();form.setPadding(dp(18),dp(18),dp(18),dp(24));form.setBackgroundColor(PALE);sc.addView(form);
+        TextView heading=text(existing==null?"ADD NEW RECORD":"EDIT RECORD",22,NAVY,true);
+        heading.setPadding(0,0,0,dp(14));form.addView(heading);
+        EditText[] inputs=new EditText[FIELDS.length];
+        Spinner payment=null;
+        for(int i=0;i<FIELDS.length;i++){
+            String field=FIELDS[i];
+            TextView label=text(field,12,NAVY,true);label.setPadding(dp(3),dp(9),0,dp(5));form.addView(label);
+            if("PAYMENT MODE".equals(field)){
+                payment=new Spinner(this);
+                payment.setAdapter(new ArrayAdapter<String>(this,android.R.layout.simple_spinner_dropdown_item,PAYMENTS));
+                if(existing!=null){String val=safe(existing,field,"CASH");for(int j=0;j<PAYMENTS.length;j++)if(PAYMENTS[j].equals(val))payment.setSelection(j);}
+                form.addView(payment,new LinearLayout.LayoutParams(-1,dp(52)));
+            }else{
+                EditText e=new EditText(this);inputs[i]=e;e.setSingleLine(!"ADDRESS".equals(field)&&!"REMARKS".equals(field)&&!"SPARE PARTS".equals(field));
+                e.setTextSize(14);e.setPadding(dp(14),dp(10),dp(14),dp(10));e.setTextColor(NAVY);e.setBackground(round(WHITE,dp(14),Color.rgb(210,225,245),dp(1)));
+                e.setHint("ENTER "+field);
+                if(field.contains("AMOUNT")||"AMC".equals(field)||"COLLECTION".equals(field))e.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_FLAG_DECIMAL);
+                if("MOBILE NUMBER".equals(field))e.setInputType(InputType.TYPE_CLASS_PHONE);
+                if("DATE".equals(field)){
+                    e.setFocusable(false);e.setClickable(true);e.setHint("SELECT DATE");
+                    e.setOnClickListener(v->showDatePicker(e));
+                    if(existing==null)e.setText(new SimpleDateFormat("dd-MM-yyyy",Locale.getDefault()).format(new Date()));
+                }
+                if(existing!=null)e.setText(safe(existing,field,""));
+                form.addView(e,new LinearLayout.LayoutParams(-1,dp("ADDRESS".equals(field)||"REMARKS".equals(field)?86:52)));
             }
         }
-    }
-
-    private void createPdf(int index) {
-        JSONObject r = records.optJSONObject(index);
-        if (r == null) return;
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/pdf");
-        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_CRM_" + r.optString("BILL NUMBER", "RECORD") + ".pdf");
-        pendingPdfIndex = index;
-        startActivityForResult(intent, 102);
-    }
-    private int pendingPdfIndex = -1;
-
-    private void writePdf(Uri uri, int index) {
-        try {
-            JSONObject r = records.optJSONObject(index);
-            android.graphics.pdf.PdfDocument doc = new android.graphics.pdf.PdfDocument();
-            android.graphics.pdf.PdfDocument.PageInfo info =
-                new android.graphics.pdf.PdfDocument.PageInfo.Builder(595, 842, 1).create();
-            android.graphics.pdf.PdfDocument.Page page = doc.startPage(info);
-            Canvas canvas = page.getCanvas();
-            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-            p.setColor(COLORS[0]); p.setTextSize(22); p.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-            canvas.drawText("VIPIN SERVICE CRM", 40, 55, p);
-            p.setTextSize(11); p.setColor(Color.DKGRAY);
-            canvas.drawText("SERVICE RECORD", 40, 78, p);
-            int y = 115;
-            for (String f : FIELDS) {
-                p.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-                p.setColor(0xFF334155);
-                canvas.drawText(f, 42, y, p);
-                p.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
-                canvas.drawText(r.optString(f, ""), 210, y, p);
-                y += 35;
-                if (y > 790) break;
-            }
-            doc.finishPage(page);
-            OutputStream out = getContentResolver().openOutputStream(uri);
-            doc.writeTo(out); out.close(); doc.close();
-            toast("PDF SAVED");
-        } catch (Exception e) { toast("PDF ERROR: " + e.getMessage()); }
-    }
-
-    private void changePassword() {
-        LinearLayout box = new LinearLayout(this);
-        box.setPadding(dp(16), dp(8), dp(16), dp(8));
-        box.setOrientation(LinearLayout.VERTICAL);
-        EditText old = new EditText(this); old.setHint("OLD PASSWORD"); old.setInputType(129);
-        EditText n = new EditText(this); n.setHint("NEW PASSWORD"); n.setInputType(129);
-        EditText confirm = new EditText(this); confirm.setHint("CONFIRM NEW PASSWORD"); confirm.setInputType(129);
-        box.addView(old); box.addView(n); box.addView(confirm);
-        new AlertDialog.Builder(this).setTitle("CHANGE PASSWORD").setView(box)
-            .setNegativeButton("CANCEL", null)
-            .setPositiveButton("SAVE", (d,w) -> {
-                if (!hash(old.getText().toString()).equals(prefs.getString(PASSWORD, hash("1234"))))
-                    toast("OLD PASSWORD WRONG");
-                else if (n.getText().length() < 4) toast("PASSWORD MINIMUM 4 CHARACTERS");
-                else if (!n.getText().toString().equals(confirm.getText().toString())) toast("PASSWORD NOT MATCH");
-                else { prefs.edit().putString(PASSWORD, hash(n.getText().toString())).apply(); toast("PASSWORD CHANGED"); }
-            }).show();
-    }
-
-    private void exportCsv() {
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/csv");
-        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
-        startActivityForResult(intent, 103);
-    }
-    private void writeCsv(Uri uri) {
-        try {
-            OutputStream out = getContentResolver().openOutputStream(uri);
-            OutputStreamWriter writer = new OutputStreamWriter(out, "UTF-8");
-            for (int i=0;i<FIELDS.length;i++) {
-                if (i>0) writer.write(",");
-                writer.write("\"" + FIELDS[i].replace("\"", "\"\"") + "\"");
-            }
-            writer.write("\n");
-            for (int j=0;j<records.length();j++) {
-                JSONObject r = records.optJSONObject(j);
-                for (int i=0;i<FIELDS.length;i++) {
-                    if (i>0) writer.write(",");
-                    String value = r == null ? "" : r.optString(FIELDS[i], "");
-                    writer.write("\"" + value.replace("\"", "\"\"").replace("\n", " ") + "\"");
+        Spinner finalPayment=payment;
+        Button save=button(existing==null?"SAVE RECORD":"UPDATE RECORD");
+        form.addView(save,margins(-1,dp(58),0,dp(24),0,0));
+        save.setOnClickListener(v->{
+            tap(v);
+            try{
+                JSONObject obj=existing==null?new JSONObject():new JSONObject(existing.toString());
+                for(int i=0;i<FIELDS.length;i++){
+                    if("PAYMENT MODE".equals(FIELDS[i]))obj.put(FIELDS[i],finalPayment.getSelectedItem().toString());
+                    else obj.put(FIELDS[i],inputs[i].getText().toString().trim());
                 }
-                writer.write("\n");
-            }
-            writer.flush(); writer.close(); toast("CSV EXPORTED");
-        } catch (Exception e) { toast("EXPORT ERROR: " + e.getMessage()); }
+                if(obj.optString("CUSTOMER NAME").isEmpty()){inputs[5].setError("CUSTOMER NAME REQUIRED");return;}
+                if(existing==null)records.put(obj);else records.put(editingIndex,obj);
+                saveRecords();
+                Toast.makeText(this,"RECORD SAVED SUCCESSFULLY",Toast.LENGTH_SHORT).show();
+                showCRM();renderPage("RECORDS");
+            }catch(Exception ex){Toast.makeText(this,"SAVE FAILED",Toast.LENGTH_SHORT).show();}
+        });
+        new AlertDialog.Builder(this).setView(sc).setNegativeButton("CLOSE",null).show();
+        enter(form);
     }
 
-    private void loadRecords() {
-        try { records = new JSONArray(prefs.getString(RECORDS, "[]")); }
-        catch (Exception e) { records = new JSONArray(); }
+    private void showDatePicker(EditText target){
+        Calendar c=Calendar.getInstance();
+        new DatePickerDialog(this,(v,y,m,d)->target.setText(String.format(Locale.getDefault(),"%02d-%02d-%04d",d,m+1,y)),
+                c.get(Calendar.YEAR),c.get(Calendar.MONTH),c.get(Calendar.DAY_OF_MONTH)).show();
     }
-    private void saveRecords() { prefs.edit().putString(RECORDS, records.toString()).apply(); }
-    private double number(String s) { try { return Double.parseDouble(s.replace(",", "").trim()); } catch (Exception e) { return 0; } }
-    private String money(double n) { return String.format(Locale.US, "₹%.2f", n); }
-    private String today() { return new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(new Date()); }
-    private void toast(String s) { Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
-    private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
-    private LinearLayout basePage() {
-        LinearLayout p = new LinearLayout(this);
-        p.setOrientation(LinearLayout.VERTICAL);
-        p.setPadding(dp(16), dp(18), dp(16), dp(18));
-        p.setBackgroundColor(COLORS[3]);
-        return p;
+
+    private void changePassword(){
+        LinearLayout box=vertical();box.setPadding(dp(18),dp(10),dp(18),0);
+        EditText old=new EditText(this);old.setHint("CURRENT PASSWORD");old.setInputType(129);box.addView(old);
+        EditText n=new EditText(this);n.setHint("NEW PASSWORD");n.setInputType(129);box.addView(n);
+        EditText confirm=new EditText(this);confirm.setHint("CONFIRM NEW PASSWORD");confirm.setInputType(129);box.addView(confirm);
+        new AlertDialog.Builder(this).setTitle("CHANGE PASSWORD").setView(box).setNegativeButton("CANCEL",null)
+                .setPositiveButton("SAVE",(d,w)->{
+                    if(!old.getText().toString().equals(password())){Toast.makeText(this,"CURRENT PASSWORD INCORRECT",Toast.LENGTH_SHORT).show();return;}
+                    if(n.getText().length()<4||!n.getText().toString().equals(confirm.getText().toString())){Toast.makeText(this,"PASSWORD MUST MATCH AND BE 4+ CHARACTERS",Toast.LENGTH_LONG).show();return;}
+                    prefs.edit().putString(PASS_KEY,n.getText().toString()).apply();
+                    Toast.makeText(this,"PASSWORD UPDATED",Toast.LENGTH_SHORT).show();
+                }).show();
     }
-    private LinearLayout card() {
-        LinearLayout c = new LinearLayout(this);
-        c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(18), dp(16), dp(18), dp(16));
-        c.setBackground(round(COLORS[0], 20));
-        return c;
+
+    private void exportCsv(){
+        Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);intent.setType("text/csv");intent.putExtra(Intent.EXTRA_TITLE,"VIPIN_SERVICE_CRM.csv");
+        startActivityForResult(intent,EXPORT_REQUEST);
     }
-    private TextView label(String s, int size, int color, boolean bold) {
-        TextView t = new TextView(this);
-        t.setText(s); t.setTextSize(size); t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        t.setPadding(0, dp(4), 0, dp(4));
-        return t;
+    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode==EXPORT_REQUEST&&resultCode==RESULT_OK&&data!=null){
+            Uri uri=data.getData();
+            try(OutputStream os=getContentResolver().openOutputStream(uri);OutputStreamWriter w=new OutputStreamWriter(os)){
+                for(int i=0;i<FIELDS.length;i++){if(i>0)w.write(",");w.write(csv(FIELDS[i]));}w.write("\n");
+                for(int r=0;r<records.length();r++){
+                    JSONObject o=records.optJSONObject(r);
+                    for(int i=0;i<FIELDS.length;i++){if(i>0)w.write(",");w.write(csv(o==null?"":o.optString(FIELDS[i],"")));}w.write("\n");
+                }
+                w.flush();Toast.makeText(this,"CSV EXPORTED",Toast.LENGTH_LONG).show();
+            }catch(Exception e){Toast.makeText(this,"EXPORT FAILED",Toast.LENGTH_LONG).show();}
+        }
     }
-    private GradientDrawable round(int color, int radius) {
-        GradientDrawable d = new GradientDrawable();
-        d.setColor(color); d.setCornerRadius(dp(radius)); return d;
+    private String csv(String s){if(s==null)return "\"\"";return "\""+s.replace("\"","\"\"")+"\"";}
+
+    private double lastMonthTotal(String field){
+        Calendar c=Calendar.getInstance();c.add(Calendar.MONTH,-1);
+        return monthTotal(field,c.get(Calendar.MONTH)+1,""+c.get(Calendar.YEAR));
     }
-    private LinearLayout.LayoutParams params() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-        p.bottomMargin = dp(8); return p;
+    private double monthTotal(String field,int month,String year){
+        double sum=0;
+        for(int i=0;i<records.length();i++){
+            JSONObject o=records.optJSONObject(i);if(o==null)continue;
+            String date=safe(o,"DATE","");
+            try{
+                Date d=new SimpleDateFormat("dd-MM-yyyy",Locale.getDefault()).parse(date);
+                Calendar c=Calendar.getInstance();c.setTime(d);
+                if(c.get(Calendar.MONTH)+1==month&&(""+c.get(Calendar.YEAR)).equals(year))
+                    sum+=Double.parseDouble(safe(o,field,"0").replace(",",""));
+            }catch(Exception ignored){}
+        }
+        return sum;
     }
-    private Button button(String text) {
-        Button b = new Button(this); b.setText(text); b.setTextColor(Color.WHITE);
-        b.setAllCaps(false); b.setBackground(round(0xFF2563EB, 14)); return b;
+    private int countMonth(int month,String year){
+        int count=0;
+        for(int i=0;i<records.length();i++){
+            JSONObject o=records.optJSONObject(i);if(o==null)continue;
+            try{Date d=new SimpleDateFormat("dd-MM-yyyy",Locale.getDefault()).parse(safe(o,"DATE",""));
+                Calendar c=Calendar.getInstance();c.setTime(d);
+                if(c.get(Calendar.MONTH)+1==month&&(""+c.get(Calendar.YEAR)).equals(year))count++;
+            }catch(Exception ignored){}
+        }return count;
     }
-    private Button smallButton(String text) {
-        Button b = new Button(this); b.setText(text); b.setTextSize(11);
-        b.setTextColor(Color.WHITE); b.setAllCaps(false);
-        b.setBackground(round(0xFF0F766E, 12)); return b;
+    private String money(double v){return String.format(Locale.getDefault(),"%,.2f",v);}
+    private String safe(JSONObject o,String k,String def){return o==null?def:o.optString(k,def);}
+
+    private LinearLayout vertical(){LinearLayout l=new LinearLayout(this);l.setOrientation(LinearLayout.VERTICAL);return l;}
+    private TextView text(String s,int size,int color,boolean bold){
+        TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);
+        t.setTypeface(Typeface.create("sans-serif-condensed",bold?Typeface.BOLD:Typeface.NORMAL));return t;
     }
+    private LinearLayout card(int color){
+        LinearLayout l=vertical();l.setBackground(round(color,dp(22),Color.rgb(225,233,247),dp(1)));
+        l.setElevation(dp(5));return l;
+    }
+    private Button button(String label){
+        Button b=new Button(this);b.setText(label);b.setTextColor(WHITE);b.setTextSize(13);b.setAllCaps(false);
+        b.setTypeface(Typeface.DEFAULT_BOLD);b.setBackground(gradient(new int[]{BLUE,CYAN},dp(16)));
+        b.setElevation(dp(5));return b;
+    }
+    private Button smallButton(String label){
+        Button b=button(label);b.setTextSize(10);b.setPadding(dp(5),0,dp(5),0);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(95),dp(38));p.setMargins(0,dp(10),dp(8),0);b.setLayoutParams(p);return b;
+    }
+    private View actionCard(String label,int color,Runnable action){
+        TextView t=text(label,12,WHITE,true);t.setGravity(Gravity.CENTER);t.setPadding(dp(5),dp(8),dp(5),dp(8));
+        t.setBackground(gradient(new int[]{color,BLUE},dp(17)));t.setElevation(dp(5));
+        t.setOnClickListener(v->{tap(v);action.run();});return t;
+    }
+    private void tap(View v){
+        ScaleAnimation a=new ScaleAnimation(1f,0.96f,1f,0.96f,Animation.RELATIVE_TO_SELF,.5f,Animation.RELATIVE_TO_SELF,.5f);
+        a.setDuration(90);a.setRepeatCount(1);a.setRepeatMode(Animation.REVERSE);v.startAnimation(a);
+    }
+    private void enter(View v){
+        v.setAlpha(0f);v.setTranslationY(dp(18));
+        v.animate().alpha(1f).translationY(0).setDuration(380).setInterpolator(new DecelerateInterpolator()).start();
+    }
+    private void shake(View v){
+        TranslateAnimation a=new TranslateAnimation(-dp(8),dp(8),0,0);a.setDuration(55);a.setRepeatCount(3);a.setRepeatMode(Animation.REVERSE);v.startAnimation(a);
+    }
+    private void countUp(TextView tv,double value){
+        final long end=(long)(value*100);
+        if(end<=0)return;
+        final long start=System.currentTimeMillis();
+        tv.post(new Runnable(){public void run(){
+            float f=Math.min(1f,(System.currentTimeMillis()-start)/650f);
+            tv.setText(tv.getText().toString().split("₹")[0]+"₹"+money(value*f));
+            if(f<1f)tv.postDelayed(this,16);
+        }});
+    }
+    private GradientDrawable round(int color,int radius,int stroke,int sw){
+        GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(radius);d.setStroke(sw,stroke);return d;
+    }
+    private GradientDrawable gradient(int[] colors,int radius){
+        GradientDrawable d=new GradientDrawable(GradientDrawable.Orientation.TL_BR,colors);d.setCornerRadius(radius);return d;
+    }
+    private GradientDrawable circle(int color){
+        GradientDrawable d=new GradientDrawable();d.setShape(GradientDrawable.OVAL);d.setColor(color);return d;
+    }
+    private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
+    private LinearLayout.LayoutParams margins(int w,int h,int l,int t,int r,int b){
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(w,h);
+        p.setMargins(l,t,r,b);return p;
+    }
+    private void onClick(View v,Runnable r){v.setOnClickListener(x->r.run());}
 }
