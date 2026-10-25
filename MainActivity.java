@@ -1,614 +1,501 @@
 
 package com.vipin.servicecrm;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.DatePickerDialog;
+import android.app.*;
 import android.os.Bundle;
-import android.content.SharedPreferences;
-import android.content.Intent;
-import android.content.res.ColorStateList;
+import android.content.*;
 import android.graphics.Color;
-import android.text.InputType;
-import android.view.Gravity;
-import android.view.View;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
+import android.view.*;
 import android.widget.*;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import java.security.MessageDigest;
-import java.nio.charset.StandardCharsets;
+import org.json.*;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Locale;
+import java.util.*;
 
 public class MainActivity extends Activity {
 
-    SharedPreferences prefs;
-    JSONArray records;
+    private static final String PREF = "VIPIN_CRM";
+    private static final String RECORDS = "records";
 
-    EditText customer, mobile, invoice, product, date;
-    EditText spare, net, warranty, amc, collection;
+    private final int BLUE = Color.rgb(25, 75, 180);
+    private final int GREEN = Color.rgb(20, 150, 85);
+    private final int ORANGE = Color.rgb(240, 135, 25);
+    private final int PURPLE = Color.rgb(125, 65, 180);
+    private final int RED = Color.rgb(210, 65, 65);
+    private final int DARK = Color.rgb(35, 45, 65);
+    private final int BG = Color.rgb(239, 244, 255);
 
-    TextView totals, recordList;
-    int filterMonth = -1;
-    int filterYear = -1;
-
-    final int BLUE = Color.rgb(25, 75, 150);
-    final int WHITE = Color.WHITE;
-
-    String hash(String password) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = md.digest(
-                ("VIPIN_CRM_SALT_" + password)
-                .getBytes(StandardCharsets.UTF_8));
-
-            StringBuilder result = new StringBuilder();
-            for (byte b : bytes) {
-                result.append(String.format("%02x", b & 0xff));
-            }
-            return result.toString();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    int dp(int n) {
-        return (int)(n * getResources()
-            .getDisplayMetrics().density);
-    }
-
-    LinearLayout layout() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        l.setPadding(dp(16), dp(15), dp(16), dp(25));
-        l.setBackgroundColor(Color.rgb(239, 245, 255));
-        return l;
-    }
-
-    void heading(LinearLayout box, String text) {
-        TextView t = new TextView(this);
-        t.setText(text);
-        t.setTextSize(24);
-        t.setTextColor(WHITE);
-        t.setGravity(Gravity.CENTER);
-        t.setPadding(dp(8), dp(18), dp(8), dp(18));
-        t.setBackgroundColor(BLUE);
-        box.addView(t);
-    }
-
-    void label(LinearLayout box, String text) {
-        TextView t = new TextView(this);
-        t.setText(text);
-        t.setTextSize(15);
-        t.setTextColor(Color.rgb(30, 60, 100));
-        t.setPadding(0, dp(10), 0, dp(3));
-        box.addView(t);
-    }
-
-    EditText input(String hint, int type) {
-        EditText e = new EditText(this);
-        e.setHint(hint);
-        e.setSingleLine(true);
-        e.setTextSize(16);
-        e.setTextColor(Color.BLACK);
-        e.setHintTextColor(Color.GRAY);
-        e.setInputType(type);
-        e.setPadding(dp(12), dp(8), dp(12), dp(8));
-        e.setBackgroundTintList(
-            ColorStateList.valueOf(Color.rgb(40, 110, 190)));
-        return e;
-    }
-
-    Button addButton(LinearLayout box, String text, int color) {
-        Button b = new Button(this);
-        b.setText(text);
-        b.setTextColor(WHITE);
-        b.setTextSize(14);
-        b.setAllCaps(false);
-        b.setBackgroundTintList(ColorStateList.valueOf(color));
-
-        LinearLayout.LayoutParams p =
-            new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        p.setMargins(0, dp(5), 0, dp(5));
-        box.addView(b, p);
-        return b;
-    }
+    private SharedPreferences prefs;
+    private JSONArray records;
+    private LinearLayout root, recordList, totalsBox;
+    private EditText customer, mobile, invoice, product;
+    private EditText spare, net, warranty, amc, collection;
+    private TextView dateText;
+    private int selectedMonth, selectedYear;
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        prefs = getSharedPreferences("VIPIN_CRM", MODE_PRIVATE);
-
+    public void onCreate(Bundle b) {
+        super.onCreate(b);
+        prefs = getSharedPreferences(PREF, MODE_PRIVATE);
+        String defaultHash = hash("Jvipin");
         if (!prefs.contains("password")) {
-            prefs.edit().putString("password",
-                hash("Jvipin")).apply();
+            prefs.edit().putString("password", defaultHash).apply();
         }
 
         try {
-            records = new JSONArray(
-                prefs.getString("records", "[]"));
+            records = new JSONArray(prefs.getString(RECORDS, "[]"));
         } catch (Exception e) {
             records = new JSONArray();
         }
 
+        Calendar c = Calendar.getInstance();
+        selectedMonth = c.get(Calendar.MONTH) + 1;
+        selectedYear = c.get(Calendar.YEAR);
         showLogin();
     }
 
-    void showLogin() {
-        LinearLayout l = layout();
-        heading(l, "VIPIN SERVICE CRM");
-
-        label(l, "ENTER YOUR PASSWORD");
-
-        EditText pass = input("Password",
-            InputType.TYPE_CLASS_TEXT |
-            InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        l.addView(pass);
-
-        Button login = addButton(l, "LOGIN",
-            Color.rgb(0, 145, 90));
-
-        login.setOnClickListener(v -> {
-            if (hash(pass.getText().toString()).equals(
-                prefs.getString("password", ""))) {
-                showCRM();
-            } else {
-                pass.setError("Wrong Password");
-                Toast.makeText(this, "Incorrect Password",
-                    Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        setContentView(l);
+    private String hash(String s) {
+        try {
+            java.security.MessageDigest md =
+                    java.security.MessageDigest.getInstance("SHA-256");
+            byte[] bytes = md.digest(("VIPIN_CRM_SALT_" + s).getBytes("UTF-8"));
+            StringBuilder out = new StringBuilder();
+            for (byte x : bytes) out.append(String.format("%02x", x));
+            return out.toString();
+        } catch (Exception e) {
+            return s;
+        }
     }
 
-    void showCRM() {
+    private GradientDrawable bg(int color, int radius) {
+        GradientDrawable d = new GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(radius);
+        return d;
+    }
+
+    private GradientDrawable gradient(int c1, int c2) {
+        GradientDrawable d = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{c1, c2});
+        d.setCornerRadius(28);
+        return d;
+    }
+
+    private TextView text(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(size);
+        t.setTextColor(color);
+        if (bold) t.setTypeface(null, Typeface.BOLD);
+        t.setPadding(8, 8, 8, 8);
+        return t;
+    }
+
+    private LinearLayout vertical() {
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        return l;
+    }
+
+    private LinearLayout horizontal() {
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.HORIZONTAL);
+        l.setGravity(Gravity.CENTER_VERTICAL);
+        return l;
+    }
+
+    private void setupRoot() {
+        root = vertical();
+        root.setPadding(14, 12, 14, 18);
+        root.setBackgroundColor(BG);
+
         ScrollView scroll = new ScrollView(this);
-        LinearLayout root = layout();
+        scroll.setFillViewport(true);
         scroll.addView(root);
-
-        heading(root, "VIPIN SERVICE CRM");
-        label(root, "CUSTOMER ENTRY");
-
-        customer = input("Customer Name",
-            InputType.TYPE_CLASS_TEXT);
-        root.addView(customer);
-
-        mobile = input("Mobile Number",
-            InputType.TYPE_CLASS_PHONE);
-        root.addView(mobile);
-
-        invoice = input("Bill Number / Invoice Number",
-            InputType.TYPE_CLASS_TEXT);
-        root.addView(invoice);
-
-        product = input("Product Name",
-            InputType.TYPE_CLASS_TEXT);
-        root.addView(product);
-
-        label(root, "SERVICE DATE");
-        date = input("Select Date",
-            InputType.TYPE_CLASS_TEXT);
-        date.setFocusable(false);
-        date.setClickable(true);
-        date.setOnClickListener(v -> openDatePicker());
-        root.addView(date);
-
-        label(root, "OLD AMOUNT DETAILS");
-
-        label(root, "SPARE PARTS AMOUNT");
-        spare = input("Spare Parts Amount",
-            InputType.TYPE_CLASS_NUMBER |
-            InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        root.addView(spare);
-
-        label(root, "NET AMOUNT");
-        net = input("Net Amount",
-            InputType.TYPE_CLASS_NUMBER |
-            InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        root.addView(net);
-
-        label(root, "WARRANTY AMOUNT");
-        warranty = input("Warranty Amount",
-            InputType.TYPE_CLASS_NUMBER |
-            InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        root.addView(warranty);
-
-        label(root, "NEW AMOUNT DETAILS");
-
-        label(root, "AMC AMOUNT");
-        amc = input("AMC Amount",
-            InputType.TYPE_CLASS_NUMBER |
-            InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        root.addView(amc);
-
-        label(root, "COLLECTION AMOUNT");
-        collection = input("Collection Amount",
-            InputType.TYPE_CLASS_NUMBER |
-            InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        root.addView(collection);
-
-        Button save = addButton(root, "SAVE CUSTOMER RECORD",
-            Color.rgb(0, 145, 80));
-        save.setOnClickListener(v -> saveRecord());
-
-        label(root, "BUSINESS TOTALS");
-
-        totals = new TextView(this);
-        totals.setTextSize(16);
-        totals.setTextColor(Color.rgb(0, 90, 65));
-        totals.setPadding(dp(12), dp(12), dp(12), dp(12));
-        totals.setBackgroundColor(Color.rgb(220, 255, 235));
-        root.addView(totals);
-
-        Button allRecords = addButton(root, "SHOW ALL RECORDS",
-            Color.rgb(30, 100, 180));
-        allRecords.setOnClickListener(v -> {
-            filterMonth = -1;
-            filterYear = -1;
-            updateTotals();
-            showRecords();
-        });
-
-        Button monthRecords = addButton(root, "MONTH / YEAR RECORDS",
-            Color.rgb(125, 70, 180));
-        monthRecords.setOnClickListener(v -> chooseMonthYear());
-
-        recordList = new TextView(this);
-        recordList.setTextSize(14);
-        recordList.setTextColor(Color.BLACK);
-        recordList.setPadding(dp(10), dp(10), dp(10), dp(10));
-        recordList.setBackgroundColor(WHITE);
-        root.addView(recordList);
-
-        updateTotals();
-        showRecords();
-
-        Button export = addButton(root, "EXPORT EXCEL CSV",
-            Color.rgb(0, 130, 100));
-        export.setOnClickListener(v -> exportCSV());
-
-        Button change = addButton(root, "CHANGE PASSWORD",
-            Color.rgb(230, 140, 0));
-        change.setOnClickListener(v -> changePassword());
-
-        Button logout = addButton(root, "LOGOUT",
-            Color.rgb(190, 50, 50));
-        logout.setOnClickListener(v -> showLogin());
-
-        Button clear = addButton(root, "CLEAR FORM",
-            Color.rgb(90, 100, 115));
-        clear.setOnClickListener(v -> clearForm());
-
         setContentView(scroll);
     }
 
-    void openDatePicker() {
-        Calendar c = Calendar.getInstance();
+    private void header(String subtitle) {
+        LinearLayout h = vertical();
+        h.setPadding(18, 18, 18, 18);
+        h.setBackground(gradient(BLUE, PURPLE));
 
-        DatePickerDialog dialog = new DatePickerDialog(
-            this,
-            (view, year, month, day) -> {
-                date.setText(String.format(Locale.getDefault(),
-                    "%02d/%02d/%04d", day, month + 1, year));
-            },
-            c.get(Calendar.YEAR),
-            c.get(Calendar.MONTH),
-            c.get(Calendar.DAY_OF_MONTH)
-        );
+        TextView title = text("VIPIN SERVICE CRM", 23, Color.WHITE, true);
+        title.setGravity(Gravity.CENTER);
+        h.addView(title);
 
-        dialog.show();
+        TextView sub = text(subtitle, 13, Color.WHITE, false);
+        sub.setGravity(Gravity.CENTER);
+        h.addView(sub);
+        root.addView(h);
+        space(root, 12);
     }
 
-    double amount(EditText e) {
+    private void space(LinearLayout parent, int height) {
+        View v = new View(this);
+        parent.addView(v, new LinearLayout.LayoutParams(1, height));
+    }
+
+    private LinearLayout card(String heading, int color) {
+        LinearLayout c = vertical();
+        c.setPadding(13, 10, 13, 13);
+        c.setBackground(bg(Color.WHITE, 20));
+        c.setElevation(4);
+
+        TextView title = text(heading, 17, color, true);
+        c.addView(title);
+
+        LinearLayout.LayoutParams p =
+                new LinearLayout.LayoutParams(-1, -2);
+        p.setMargins(0, 0, 0, 12);
+        root.addView(c, p);
+        return c;
+    }
+
+    private EditText field(LinearLayout parent, String hint,
+                           String value, boolean number) {
+        EditText e = new EditText(this);
+        e.setSingleLine(true);
+        e.setTextSize(15);
+        e.setTextColor(DARK);
+        e.setHintTextColor(Color.GRAY);
+        e.setHint(hint);
+        e.setPadding(13, 10, 13, 10);
+        e.setBackground(bg(Color.rgb(245, 247, 253), 13));
+        if (value != null) e.setText(value);
+        if (number) e.setInputType(8194);
+        LinearLayout.LayoutParams p =
+                new LinearLayout.LayoutParams(-1, -2);
+        p.setMargins(0, 4, 0, 8);
+        parent.addView(e, p);
+        return e;
+    }
+
+    private Button button(String label, int color, LinearLayout parent,
+                          View.OnClickListener click) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(14);
+        b.setAllCaps(false);
+        b.setTypeface(null, Typeface.BOLD);
+        b.setBackground(bg(color, 16));
+        b.setPadding(10, 8, 10, 8);
+        LinearLayout.LayoutParams p =
+                new LinearLayout.LayoutParams(-1, -2);
+        p.setMargins(0, 5, 0, 5);
+        parent.addView(b, p);
+        b.setOnClickListener(click);
+        return b;
+    }
+
+    private void showLogin() {
+        setupRoot();
+        space(root, 55);
+        LinearLayout c = card("🔐  LOGIN", BLUE);
+        TextView welcome = text("Welcome to VIPIN SERVICE CRM",
+                18, PURPLE, true);
+        welcome.setGravity(Gravity.CENTER);
+        c.addView(welcome);
+
+        EditText pass = field(c, "Enter Password", "", false);
+        pass.setInputType(129);
+
+        button("OPEN APP", GREEN, c, v -> {
+            String entered = pass.getText().toString();
+            if (hash(entered).equals(prefs.getString("password", hash("Jvipin")))) {
+                showCRM();
+            } else {
+                Toast.makeText(this, "Wrong Password", Toast.LENGTH_SHORT).show();
+            }
+        });
+        space(root, 20);
+        TextView note = text("Offline Service Management", 13, PURPLE, true);
+        note.setGravity(Gravity.CENTER);
+        root.addView(note);
+    }
+
+    private void showCRM() {
+        setupRoot();
+        header("Customer • Service • AMC • Collection");
+
+        LinearLayout customerCard = card("🟦 CUSTOMER DETAILS", BLUE);
+        customer = field(customerCard, "Customer Name", "", false);
+        mobile = field(customerCard, "Mobile Number", "", true);
+        invoice = field(customerCard, "Bill / Invoice Number", "", false);
+        product = field(customerCard, "Product Name", "", false);
+
+        LinearLayout dateCard = card("📅 SERVICE DATE", PURPLE);
+        dateText = text(new SimpleDateFormat("dd/MM/yyyy",
+                Locale.getDefault()).format(new Date()), 17, DARK, true);
+        dateText.setGravity(Gravity.CENTER);
+        dateText.setBackground(bg(Color.rgb(240, 232, 255), 14));
+        dateCard.addView(dateText);
+        button("SELECT DATE", PURPLE, dateCard, v -> openDatePicker());
+
+        LinearLayout amountCard = card("🟠 AMOUNT DETAILS", ORANGE);
+        spare = field(amountCard, "Spare Parts Amount ₹", "", true);
+        net = field(amountCard, "Net Amount ₹", "", true);
+        warranty = field(amountCard, "Warranty Amount ₹", "", true);
+
+        LinearLayout extraCard = card("🟢 AMC & COLLECTION (SEPARATE)", GREEN);
+        amc = field(extraCard, "AMC Amount ₹", "", true);
+        collection = field(extraCard, "Collection Amount ₹", "", true);
+
+        LinearLayout actions = card("⚡ ACTIONS", BLUE);
+        button("💾 SAVE RECORD", GREEN, actions, v -> saveRecord());
+        button("📊 MONTH / YEAR RECORDS", PURPLE, actions, v -> showRecords());
+        button("📁 EXPORT EXCEL CSV", ORANGE, actions, v -> exportCSV());
+        button("🔒 CHANGE PASSWORD", RED, actions, v -> changePassword());
+    }
+
+    private void openDatePicker() {
+        Calendar c = Calendar.getInstance();
+        new DatePickerDialog(this, (view, year, month, day) -> {
+            dateText.setText(String.format(Locale.getDefault(),
+                    "%02d/%02d/%04d", day, month + 1, year));
+        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH),
+                c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private double amount(EditText e) {
         try {
-            return Double.parseDouble(
-                e.getText().toString().trim());
+            return Double.parseDouble(e.getText().toString().trim());
         } catch (Exception ex) {
             return 0;
         }
     }
 
-    void saveRecord() {
-        if (customer.getText().toString().trim().isEmpty()) {
-            customer.setError("Enter Customer Name");
+    private String value(EditText e) {
+        return e.getText().toString().trim();
+    }
+
+    private void saveRecord() {
+        if (value(customer).isEmpty()) {
+            Toast.makeText(this, "Customer Name भरें", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (date.getText().toString().trim().isEmpty()) {
-            date.setError("Select Date");
-            return;
-        }
-
+        JSONObject obj = new JSONObject();
         try {
-            JSONObject r = new JSONObject();
+            obj.put("customer", value(customer));
+            obj.put("mobile", value(mobile));
+            obj.put("invoice", value(invoice));
+            obj.put("product", value(product));
+            obj.put("date", dateText.getText().toString());
+            obj.put("spare", amount(spare));
+            obj.put("net", amount(net));
+            obj.put("warranty", amount(warranty));
+            obj.put("amc", amount(amc));
+            obj.put("collection", amount(collection));
 
-            r.put("customer", customer.getText().toString());
-            r.put("mobile", mobile.getText().toString());
-            r.put("invoice", invoice.getText().toString());
-            r.put("product", product.getText().toString());
-            r.put("date", date.getText().toString());
-
-            r.put("spare", amount(spare));
-            r.put("net", amount(net));
-            r.put("warranty", amount(warranty));
-            r.put("amc", amount(amc));
-            r.put("collection", amount(collection));
-
-            records.put(r);
-
-            prefs.edit().putString("records",
-                records.toString()).apply();
-
-            updateTotals();
-            showRecords();
-            clearForm();
+            records.put(obj);
+            prefs.edit().putString(RECORDS, records.toString()).apply();
 
             Toast.makeText(this, "Record Saved Successfully",
-                Toast.LENGTH_SHORT).show();
-
+                    Toast.LENGTH_LONG).show();
+            showCRM();
         } catch (Exception e) {
-            Toast.makeText(this, "Save Error",
-                Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Save Error", Toast.LENGTH_SHORT).show();
         }
     }
 
-    boolean matchesFilter(JSONObject r) {
-        if (filterMonth == -1 || filterYear == -1) {
-            return true;
-        }
+    private void showRecords() {
+        setupRoot();
+        header("MONTHLY / YEARLY REPORT");
 
-        try {
-            String d = r.optString("date");
-            SimpleDateFormat sdf =
-                new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault());
-            Calendar c = Calendar.getInstance();
-            c.setTime(sdf.parse(d));
+        LinearLayout filter = card("🟣 SELECT MONTH & YEAR", PURPLE);
+        NumberPicker month = new NumberPicker(this);
+        month.setMinValue(1);
+        month.setMaxValue(12);
+        month.setValue(selectedMonth);
 
-            return c.get(Calendar.MONTH) == filterMonth &&
-                c.get(Calendar.YEAR) == filterYear;
+        NumberPicker year = new NumberPicker(this);
+        year.setMinValue(2020);
+        year.setMaxValue(2100);
+        year.setValue(selectedYear);
 
-        } catch (Exception e) {
-            return false;
-        }
-    }
+        LinearLayout pickers = horizontal();
+        LinearLayout mBox = vertical();
+        LinearLayout yBox = vertical();
+        mBox.addView(text("MONTH", 13, PURPLE, true));
+        yBox.addView(text("YEAR", 13, PURPLE, true));
+        mBox.addView(month);
+        yBox.addView(year);
+        pickers.addView(mBox, new LinearLayout.LayoutParams(0, -2, 1));
+        pickers.addView(yBox, new LinearLayout.LayoutParams(0, -2, 1));
+        filter.addView(pickers);
 
-    void chooseMonthYear() {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.HORIZONTAL);
-        box.setPadding(dp(15), dp(10), dp(15), dp(10));
-
-        NumberPicker monthPicker = new NumberPicker(this);
-        monthPicker.setMinValue(0);
-        monthPicker.setMaxValue(11);
-        monthPicker.setDisplayedValues(new String[]{
-            "January", "February", "March", "April",
-            "May", "June", "July", "August",
-            "September", "October", "November", "December"
+        button("SHOW RECORDS", PURPLE, filter, v -> {
+            selectedMonth = month.getValue();
+            selectedYear = year.getValue();
+            showRecords();
         });
 
-        NumberPicker yearPicker = new NumberPicker(this);
-        int currentYear = Calendar.getInstance().get(Calendar.YEAR);
-        yearPicker.setMinValue(2000);
-        yearPicker.setMaxValue(currentYear + 10);
+        totalsBox = card("💰 SEPARATE TOTAL AMOUNTS", GREEN);
+        recordList = card("📋 CUSTOMER RECORDS", BLUE);
+        updateRecords();
 
-        monthPicker.setValue(Calendar.getInstance()
-            .get(Calendar.MONTH));
-        yearPicker.setValue(currentYear);
-
-        box.addView(monthPicker,
-            new LinearLayout.LayoutParams(0, dp(150), 1));
-        box.addView(yearPicker,
-            new LinearLayout.LayoutParams(0, dp(150), 1));
-
-        new AlertDialog.Builder(this)
-            .setTitle("Select Month and Year")
-            .setView(box)
-            .setPositiveButton("SHOW", (d, w) -> {
-                filterMonth = monthPicker.getValue();
-                filterYear = yearPicker.getValue();
-                updateTotals();
-                showRecords();
-            })
-            .setNegativeButton("CANCEL", null)
-            .show();
+        LinearLayout actions = card("ACTIONS", BLUE);
+        button("BACK TO HOME", BLUE, actions, v -> showCRM());
+        button("EXPORT CSV", ORANGE, actions, v -> exportCSV());
     }
 
-    void updateTotals() {
-        double s = 0, n = 0, w = 0, a = 0, c = 0;
+    private void updateRecords() {
+        double tSpare = 0, tNet = 0, tWarranty = 0;
+        double tAmc = 0, tCollection = 0;
         int count = 0;
 
         for (int i = 0; i < records.length(); i++) {
-            JSONObject r = records.optJSONObject(i);
-            if (r != null && matchesFilter(r)) {
-                count++;
-                s += r.optDouble("spare");
-                n += r.optDouble("net");
-                w += r.optDouble("warranty");
-                a += r.optDouble("amc");
-                c += r.optDouble("collection");
+            JSONObject o = records.optJSONObject(i);
+            if (o == null) continue;
+
+            String date = o.optString("date", "");
+            try {
+                String[] parts = date.split("/");
+                int m = Integer.parseInt(parts[1]);
+                int y = Integer.parseInt(parts[2]);
+                if (m != selectedMonth || y != selectedYear) continue;
+            } catch (Exception e) {
+                continue;
             }
+
+            count++;
+            tSpare += o.optDouble("spare", 0);
+            tNet += o.optDouble("net", 0);
+            tWarranty += o.optDouble("warranty", 0);
+            tAmc += o.optDouble("amc", 0);
+            tCollection += o.optDouble("collection", 0);
+
+            LinearLayout item = vertical();
+            item.setPadding(10, 10, 10, 10);
+            item.setBackground(bg(Color.rgb(239, 246, 255), 14));
+
+            item.addView(text("👤 " + o.optString("customer"),
+                    16, BLUE, true));
+            item.addView(text("📱 " + o.optString("mobile") +
+                    "     Bill: " + o.optString("invoice"),
+                    13, DARK, false));
+            item.addView(text("Product: " + o.optString("product") +
+                    "   Date: " + date, 13, PURPLE, true));
+            item.addView(text("Spare: ₹" + o.optDouble("spare", 0) +
+                    "   Net: ₹" + o.optDouble("net", 0), 13, DARK, false));
+            item.addView(text("Warranty: ₹" + o.optDouble("warranty", 0),
+                    13, DARK, false));
+            item.addView(text("AMC: ₹" + o.optDouble("amc", 0) +
+                    "   Collection: ₹" + o.optDouble("collection", 0),
+                    14, GREEN, true));
+
+            LinearLayout.LayoutParams p =
+                    new LinearLayout.LayoutParams(-1, -2);
+            p.setMargins(0, 5, 0, 8);
+            recordList.addView(item, p);
         }
 
-        String period = filterMonth == -1
-            ? "ALL RECORDS"
-            : new String[]{
-                "January", "February", "March", "April",
-                "May", "June", "July", "August",
-                "September", "October", "November", "December"
-            }[filterMonth] + " " + filterYear;
-
-        totals.setText(
-            period +
-            "\nTotal Customers: " + count +
-            "\nSpare Parts Total: Rs. " + s +
-            "\nNet Amount Total: Rs. " + n +
-            "\nWarranty Amount Total: Rs. " + w +
-            "\nAMC Total: Rs. " + a +
-            "\nCollection Total: Rs. " + c
-        );
-    }
-
-    void showRecords() {
-        if (recordList == null) return;
-
-        StringBuilder text = new StringBuilder();
-        text.append("CUSTOMER RECORDS\n\n");
-
-        int count = 0;
-
-        for (int i = records.length() - 1; i >= 0; i--) {
-            JSONObject r = records.optJSONObject(i);
-
-            if (r != null && matchesFilter(r)) {
-                count++;
-
-                text.append("Record ").append(count).append("\n");
-                text.append("Customer: ")
-                    .append(r.optString("customer")).append("\n");
-                text.append("Mobile: ")
-                    .append(r.optString("mobile")).append("\n");
-                text.append("Bill Number: ")
-                    .append(r.optString("invoice")).append("\n");
-                text.append("Product: ")
-                    .append(r.optString("product")).append("\n");
-                text.append("Date: ")
-                    .append(r.optString("date")).append("\n");
-                text.append("Spare Parts: Rs. ")
-                    .append(r.optDouble("spare")).append("\n");
-                text.append("Net Amount: Rs. ")
-                    .append(r.optDouble("net")).append("\n");
-                text.append("Warranty: Rs. ")
-                    .append(r.optDouble("warranty")).append("\n");
-                text.append("AMC: Rs. ")
-                    .append(r.optDouble("amc")).append("\n");
-                text.append("Collection: Rs. ")
-                    .append(r.optDouble("collection")).append("\n");
-                text.append("--------------------------\n");
-            }
-        }
+        totalsBox.addView(text("Total Records: " + count, 15, BLUE, true));
+        totalsBox.addView(text("Spare Parts Total: ₹" + tSpare,
+                14, ORANGE, true));
+        totalsBox.addView(text("Net Amount Total: ₹" + tNet,
+                14, BLUE, true));
+        totalsBox.addView(text("Warranty Total: ₹" + tWarranty,
+                14, PURPLE, true));
+        totalsBox.addView(text("AMC Total: ₹" + tAmc,
+                15, GREEN, true));
+        totalsBox.addView(text("Collection Total: ₹" + tCollection,
+                15, RED, true));
 
         if (count == 0) {
-            text.append("No Records Found");
+            recordList.addView(text("इस महीने का कोई रिकॉर्ड नहीं है।",
+                    14, DARK, false));
         }
-
-        recordList.setText(text.toString());
     }
 
-    void clearForm() {
-        customer.setText("");
-        mobile.setText("");
-        invoice.setText("");
-        product.setText("");
-        date.setText("");
-        spare.setText("");
-        net.setText("");
-        warranty.setText("");
-        amc.setText("");
-        collection.setText("");
-    }
-
-    void changePassword() {
-        EditText p = input("Enter New Password",
-            InputType.TYPE_CLASS_TEXT |
-            InputType.TYPE_TEXT_VARIATION_PASSWORD);
-
-        new AlertDialog.Builder(this)
-            .setTitle("Change Password")
-            .setView(p)
-            .setPositiveButton("SAVE", (d, w) -> {
-                String value = p.getText().toString();
-
-                if (value.length() < 4) {
-                    Toast.makeText(this,
-                        "Minimum 4 characters required",
-                        Toast.LENGTH_LONG).show();
-                    return;
-                }
-
-                prefs.edit().putString("password",
-                    hash(value)).apply();
-
-                Toast.makeText(this,
-                    "Password Changed Successfully",
-                    Toast.LENGTH_LONG).show();
-            })
-            .setNegativeButton("CANCEL", null)
-            .show();
-    }
-
-    String csvValue(String value) {
-        return "\"" + value.replace("\"", "\"\"") + "\"";
-    }
-
-    void exportCSV() {
-        if (records.length() == 0) {
-            Toast.makeText(this, "No Records",
-                Toast.LENGTH_SHORT).show();
-            return;
-        }
-
+    private void exportCSV() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("text/csv");
-        intent.putExtra(Intent.EXTRA_TITLE,
-            "VIPIN_SERVICE_CRM.csv");
-
-        startActivityForResult(intent, 100);
+        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
+        startActivityForResult(intent, 101);
     }
 
     @Override
-    protected void onActivityResult(int requestCode,
-        int resultCode, Intent data) {
-
+    protected void onActivityResult(int requestCode, int resultCode,
+                                    Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == 100 &&
-            resultCode == RESULT_OK && data != null) {
-
+        if (requestCode == 101 && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
             try {
-                java.io.OutputStream out =
-                    getContentResolver().openOutputStream(
-                        data.getData());
+                java.io.OutputStream os = getContentResolver().openOutputStream(uri);
+                java.io.OutputStreamWriter writer =
+                        new java.io.OutputStreamWriter(os, "UTF-8");
 
-                StringBuilder csv = new StringBuilder();
-
-                csv.append("Customer,Mobile,Bill Number,Product,Date,")
-                    .append("Spare Parts,Net Amount,Warranty Amount,")
-                    .append("AMC,Collection\n");
+                writer.write("Customer,Mobile,Invoice,Product,Date,Spare,Net,Warranty,AMC,Collection\n");
 
                 for (int i = 0; i < records.length(); i++) {
-                    JSONObject r = records.getJSONObject(i);
-
-                    csv.append(csvValue(r.optString("customer"))).append(",");
-                    csv.append(csvValue(r.optString("mobile"))).append(",");
-                    csv.append(csvValue(r.optString("invoice"))).append(",");
-                    csv.append(csvValue(r.optString("product"))).append(",");
-                    csv.append(csvValue(r.optString("date"))).append(",");
-                    csv.append(r.optDouble("spare")).append(",");
-                    csv.append(r.optDouble("net")).append(",");
-                    csv.append(r.optDouble("warranty")).append(",");
-                    csv.append(r.optDouble("amc")).append(",");
-                    csv.append(r.optDouble("collection")).append("\n");
+                    JSONObject o = records.getJSONObject(i);
+                    writer.write(csv(o.optString("customer")) + "," +
+                            csv(o.optString("mobile")) + "," +
+                            csv(o.optString("invoice")) + "," +
+                            csv(o.optString("product")) + "," +
+                            csv(o.optString("date")) + "," +
+                            o.optDouble("spare", 0) + "," +
+                            o.optDouble("net", 0) + "," +
+                            o.optDouble("warranty", 0) + "," +
+                            o.optDouble("amc", 0) + "," +
+                            o.optDouble("collection", 0) + "\n");
                 }
 
-                if (out != null) {
-                    out.write(("\uFEFF" + csv.toString())
-                        .getBytes(StandardCharsets.UTF_8));
-                    out.close();
-                }
-
-                Toast.makeText(this, "CSV Exported Successfully",
-                    Toast.LENGTH_LONG).show();
-
+                writer.flush();
+                writer.close();
+                Toast.makeText(this, "Excel CSV Saved",
+                        Toast.LENGTH_LONG).show();
             } catch (Exception e) {
-                Toast.makeText(this, "Export Failed",
-                    Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Export Error",
+                        Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private String csv(String s) {
+        return "\"" + s.replace("\"", "\"\"") + "\"";
+    }
+
+    private void changePassword() {
+        LinearLayout box = vertical();
+        EditText oldPass = new EditText(this);
+        oldPass.setHint("Old Password");
+        oldPass.setInputType(129);
+        box.addView(oldPass);
+
+        EditText newPass = new EditText(this);
+        newPass.setHint("New Password");
+        newPass.setInputType(129);
+        box.addView(newPass);
+
+        new AlertDialog.Builder(this)
+                .setTitle("Change Password")
+                .setView(box)
+                .setPositiveButton("SAVE", (d, w) -> {
+                    String oldValue = oldPass.getText().toString();
+                    String newValue = newPass.getText().toString();
+
+                    if (!hash(oldValue).equals(
+                            prefs.getString("password", hash("Jvipin")))) {
+                        Toast.makeText(this, "Old Password गलत है",
+                                Toast.LENGTH_SHORT).show();
+                    } else if (newValue.trim().isEmpty()) {
+                        Toast.makeText(this, "New Password भरें",
+                                Toast.LENGTH_SHORT).show();
+                    } else {
+                        prefs.edit().putString("password", hash(newValue)).apply();
+                        Toast.makeText(this, "Password Changed",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("CANCEL", null)
+                .show();
     }
 }
