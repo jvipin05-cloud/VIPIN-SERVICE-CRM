@@ -1,98 +1,478 @@
 
 package com.vipin.servicecrm;
 
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.app.DatePickerDialog;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.graphics.Color;
-import android.graphics.Typeface;
+import android.app.*;
+import android.os.*;
+import android.content.*;
+import android.graphics.*;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.*;
+import android.view.animation.*;
 import android.widget.*;
-
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
+import org.json.*;
+import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
+import java.util.*;
 
 public class MainActivity extends Activity {
 
-    private final int NAVY = Color.rgb(25, 45, 90);
-    private final int BLUE = Color.rgb(35, 105, 190);
-    private final int PALE = Color.rgb(240, 246, 255);
-    private final int WHITE = Color.WHITE;
-    private final int DARK = Color.rgb(35, 45, 60);
-
-    private final String[] FIELDS = {
-        "DATE",
-        "BILL NUMBER",
-        "PRODUCT NAME",
-        "AMC",
-        "COLLECTION",
-        "CUSTOMER NAME",
-        "MOBILE NUMBER",
-        "ADDRESS",
-        "SPARE PARTS",
-        "AMOUNT",
-        "SPARE AMOUNT",
-        "WARRANTY AMOUNT",
-        "NET AMOUNT",
-        "PAYMENT MODE",
-        "REMARKS"
+    private static final String PREF = "vipin_crm_data";
+    private static final String KEY = "records";
+    private static final String[] FIELDS = {
+        "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC",
+        "COLLECTION", "CUSTOMER NAME", "MOBILE NUMBER",
+        "ADDRESS", "SPARE PARTS", "AMOUNT", "SPARE AMOUNT",
+        "WARRANTY AMOUNT", "NET AMOUNT", "PAYMENT MODE", "REMARKS"
     };
-
-    private final String[] PAYMENTS = {
+    private static final String[] PAYMENTS = {
         "CASH", "UPI", "PS UPI", "RKS UPI"
     };
 
-    private SharedPreferences prefs;
-    private JSONArray records = new JSONArray();
+    private final int navy = Color.rgb(22, 42, 85);
+    private final int blue = Color.rgb(35, 105, 210);
+    private final int pale = Color.rgb(240, 245, 255);
+    private final int white = Color.WHITE;
 
     private LinearLayout root;
-    private EditText[] inputs;
-    private Spinner paymentSpinner;
+    private JSONArray records = new JSONArray();
+    private EditText[] inputs = new EditText[FIELDS.length];
+    private String[] photos = new String[3];
+    private int editing = -1;
+    private int photoIndex = 0;
+    private int selectedMonth = -1;
+    private int selectedYear = -1;
 
-    private String selectedMonth = "";
-    private String selectedYear = "";
-
-    private static final int EXPORT_REQUEST = 101;
+    private SharedPreferences prefs;
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        prefs = getSharedPreferences("vipin_crm_data", MODE_PRIVATE);
+    public void onCreate(Bundle b) {
+        super.onCreate(b);
+        prefs = getSharedPreferences(PREF, MODE_PRIVATE);
         loadRecords();
-
-        showLogin();
+        showSplash();
     }
 
-    private int dp(float value) {
-        return (int)(value * getResources().getDisplayMetrics().density);
+    private void showSplash() {
+        LinearLayout box = vertical();
+        box.setGravity(Gravity.CENTER);
+        box.setBackgroundColor(navy);
+
+        TextView logo = text("VIPIN", 42, white, true);
+        TextView sub = text("SERVICE CRM", 24, white, true);
+        TextView line = text("SERVICE • RECORD • MANAGEMENT", 12, white, false);
+
+        box.addView(logo);
+        box.addView(sub);
+        box.addView(line);
+        setContentView(box);
+
+        ScaleAnimation anim = new ScaleAnimation(
+            0.4f, 1f, 0.4f, 1f,
+            Animation.RELATIVE_TO_SELF, 0.5f,
+            Animation.RELATIVE_TO_SELF, 0.5f
+        );
+        anim.setDuration(900);
+        logo.startAnimation(anim);
+
+        new Handler().postDelayed(() -> showLogin(), 1300);
+    }
+
+    private void showLogin() {
+        LinearLayout box = vertical();
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(28, 28, 28, 28);
+        box.setBackgroundColor(pale);
+
+        box.addView(text("VIPIN SERVICE CRM", 27, navy, true));
+        box.addView(text("LOGIN TO CONTINUE", 14, blue, true));
+
+        EditText pass = new EditText(this);
+        pass.setHint("ENTER PASSWORD");
+        pass.setSingleLine(true);
+        pass.setInputType(129);
+        box.addView(pass);
+
+        Button login = button("OPEN APP");
+        box.addView(login);
+
+        login.setOnClickListener(v -> {
+            String saved = prefs.getString("password", "Jvipin");
+            if (pass.getText().toString().equals(saved)) {
+                showHome();
+            } else {
+                msg("WRONG PASSWORD");
+            }
+        });
+
+        setContentView(box);
+    }
+
+    private void showHome() {
+        ScrollView scroll = new ScrollView(this);
+        root = vertical();
+        root.setPadding(16, 18, 16, 25);
+        root.setBackgroundColor(pale);
+        scroll.addView(root);
+
+        header(root, "VIPIN SERVICE CRM");
+
+        addHomeButton("ADD NEW RECORD", this::showForm);
+        addHomeButton("SEARCH RECORD", this::searchRecords);
+        addHomeButton("RECORD FOLDER - MONTH / YEAR", this::showFolder);
+        addHomeButton("EXPORT EXCEL / CSV", this::exportCSV);
+        addHomeButton("CHANGE PASSWORD", this::changePassword);
+
+        addView(root, text("TOTAL RECORDS: " + records.length(),
+            16, navy, true));
+
+        setContentView(scroll);
+    }
+
+    private void showForm() {
+        editing = -1;
+        photos = new String[3];
+        showFormScreen(null);
+    }
+
+    private void showFormScreen(JSONObject old) {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout panel = vertical();
+        panel.setPadding(14, 15, 14, 25);
+        panel.setBackgroundColor(pale);
+        scroll.addView(panel);
+
+        header(panel, editing < 0 ? "ADD NEW RECORD" : "EDIT RECORD");
+
+        for (int i = 0; i < FIELDS.length; i++) {
+            panel.addView(text(FIELDS[i], 13, navy, true));
+
+            if (i == 14) {
+                inputs[i] = new EditText(this);
+                inputs[i].setHint(FIELDS[i]);
+                inputs[i].setMinLines(2);
+                panel.addView(inputs[i]);
+            } else if (i == 13) {
+                Spinner sp = new Spinner(this);
+                ArrayAdapter<String> ad = new ArrayAdapter<>(
+                    this, android.R.layout.simple_spinner_dropdown_item, PAYMENTS
+                );
+                sp.setAdapter(ad);
+                panel.addView(sp);
+                inputs[i] = new EditText(this);
+                inputs[i].setVisibility(View.GONE);
+                panel.addView(inputs[i]);
+                sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+                    public void onNothingSelected(android.widget.AdapterView<?> p) {}
+                    public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+                        inputs[13].setText(PAYMENTS[pos]);
+                    }
+                });
+            } else {
+                inputs[i] = new EditText(this);
+                inputs[i].setHint("ENTER " + FIELDS[i]);
+                inputs[i].setSingleLine(i != 7);
+                if (i == 0) {
+                    inputs[i].setFocusable(false);
+                    inputs[i].setOnClickListener(v -> pickDate(inputs[i]));
+                    inputs[i].setText(new SimpleDateFormat(
+                        "dd-MM-yyyy", Locale.getDefault()
+                    ).format(new Date()));
+                }
+                if (i == 3 || i == 4 || (i >= 9 && i <= 12)) {
+                    inputs[i].setInputType(8194);
+                }
+                panel.addView(inputs[i]);
+            }
+
+            if (old != null) {
+                inputs[i].setText(old.optString(FIELDS[i], ""));
+            }
+        }
+
+        panel.addView(text("ATTACH PHOTOS (MAXIMUM 3)", 15, navy, true));
+
+        LinearLayout photoRow = new LinearLayout(this);
+        for (int i = 0; i < 3; i++) {
+            final int index = i;
+            Button p = button("PHOTO " + (i + 1));
+            photoRow.addView(p, new LinearLayout.LayoutParams(0, -2, 1));
+            p.setOnClickListener(v -> {
+                photoIndex = index;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.setType("image/*");
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                startActivityForResult(intent, 101);
+            });
+        }
+        panel.addView(photoRow);
+
+        Button save = button("SAVE RECORD");
+        panel.addView(save);
+        save.setOnClickListener(v -> saveRecord());
+
+        Button back = button("BACK");
+        panel.addView(back);
+        back.setOnClickListener(v -> showHome());
+
+        setContentView(scroll);
+    }
+
+    private void pickDate(EditText target) {
+        Calendar c = Calendar.getInstance();
+        new DatePickerDialog(this, (view, y, m, d) ->
+            target.setText(String.format(Locale.getDefault(),
+                "%02d-%02d-%04d", d, m + 1, y)),
+            c.get(Calendar.YEAR), c.get(Calendar.MONTH),
+            c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    private void saveRecord() {
+        try {
+            JSONObject obj = new JSONObject();
+            for (int i = 0; i < FIELDS.length; i++) {
+                obj.put(FIELDS[i], inputs[i].getText().toString().trim());
+            }
+
+            JSONArray photoArray = new JSONArray();
+            for (String p : photos) photoArray.put(p == null ? "" : p);
+            obj.put("PHOTOS", photoArray);
+
+            if (editing >= 0) {
+                records.put(editing, obj);
+            } else {
+                records.put(obj);
+            }
+
+            saveRecords();
+            msg("RECORD SAVED SUCCESSFULLY");
+            showHome();
+        } catch (Exception e) {
+            msg("SAVE ERROR: " + e.getMessage());
+        }
+    }
+
+    private void searchRecords() {
+        EditText q = new EditText(this);
+        q.setHint("BILL NUMBER / CUSTOMER / MOBILE");
+
+        new AlertDialog.Builder(this)
+            .setTitle("SEARCH RECORD")
+            .setView(q)
+            .setPositiveButton("SEARCH", (d, w) ->
+                showResults(q.getText().toString()))
+            .setNegativeButton("CANCEL", null).show();
+    }
+
+    private void showFolder() {
+        Calendar c = Calendar.getInstance();
+        int year = c.get(Calendar.YEAR);
+        String[] months = new String[12];
+        for (int i = 0; i < 12; i++) {
+            months[i] = new java.text.DateFormatSymbols().getMonths()[i];
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("SELECT MONTH")
+            .setItems(months, (d, which) -> {
+                selectedMonth = which + 1;
+                selectedYear = year;
+                showMonthRecords();
+            }).show();
+    }
+
+    private void showMonthRecords() {
+        String month = String.format(Locale.getDefault(), "%02d", selectedMonth);
+        JSONArray found = new JSONArray();
+
+        for (int i = 0; i < records.length(); i++) {
+            JSONObject o = records.optJSONObject(i);
+            String date = o == null ? "" : o.optString("DATE");
+            if (date.endsWith("-" + month + "-" + selectedYear)) {
+                found.put(o);
+            }
+        }
+        showArray(found);
+    }
+
+    private void showResults(String query) {
+        JSONArray found = new JSONArray();
+        String q = query.toLowerCase(Locale.ROOT);
+
+        for (int i = 0; i < records.length(); i++) {
+            JSONObject o = records.optJSONObject(i);
+            if (o == null) continue;
+            String data = o.optString("BILL NUMBER") + " " +
+                o.optString("CUSTOMER NAME") + " " +
+                o.optString("MOBILE NUMBER");
+            if (data.toLowerCase(Locale.ROOT).contains(q)) found.put(o);
+        }
+        showArray(found);
+    }
+
+    private void showArray(JSONArray list) {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout panel = vertical();
+        panel.setPadding(14, 14, 14, 20);
+        panel.setBackgroundColor(pale);
+        scroll.addView(panel);
+
+        header(panel, "RECORDS: " + list.length());
+
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject o = list.optJSONObject(i);
+            if (o == null) continue;
+
+            LinearLayout card = vertical();
+            card.setPadding(12, 12, 12, 12);
+            card.setBackground(shape(white, 14));
+            card.addView(text(o.optString("CUSTOMER NAME"), 18, navy, true));
+            card.addView(text("BILL: " + o.optString("BILL NUMBER"), 14, blue, true));
+            card.addView(text("DATE: " + o.optString("DATE"), 13, navy, false));
+            card.addView(text("MOBILE: " + o.optString("MOBILE NUMBER"), 13, navy, false));
+            card.addView(text("NET AMOUNT: " + o.optString("NET AMOUNT"), 14, navy, true));
+
+            final JSONObject selected = o;
+            final int recordIndex = findRecord(o);
+
+            Button edit = button("EDIT");
+            Button delete = button("DELETE");
+            card.addView(edit);
+            card.addView(delete);
+
+            edit.setOnClickListener(v -> {
+                editing = recordIndex;
+                photos = new String[3];
+                JSONArray a = selected.optJSONArray("PHOTOS");
+                if (a != null) for (int x = 0; x < 3 && x < a.length(); x++)
+                    photos[x] = a.optString(x);
+                showFormScreen(selected);
+            });
+
+            delete.setOnClickListener(v ->
+                new AlertDialog.Builder(this)
+                    .setMessage("DELETE THIS RECORD?")
+                    .setPositiveButton("YES", (d, w) -> {
+                        if (recordIndex >= 0) {
+                            records.remove(recordIndex);
+                            saveRecords();
+                        }
+                        showHome();
+                    }).setNegativeButton("NO", null).show());
+
+            panel.addView(card);
+        }
+
+        panel.addView(button("BACK"));
+        setContentView(scroll);
+    }
+
+    private int findRecord(JSONObject obj) {
+        for (int i = 0; i < records.length(); i++) {
+            if (records.optJSONObject(i) == obj) return i;
+        }
+        for (int i = 0; i < records.length(); i++) {
+            if (records.optJSONObject(i) != null &&
+                records.optJSONObject(i).toString().equals(obj.toString())) return i;
+        }
+        return -1;
+    }
+
+    private void exportCSV() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.setType("text/csv");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
+        startActivityForResult(intent, 102);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null) return;
+
+        Uri uri = data.getData();
+        if (requestCode == 101) {
+            try {
+                File dir = new File(getFilesDir(), "photos");
+                if (!dir.exists()) dir.mkdirs();
+
+                File file = new File(dir, "photo_" + System.currentTimeMillis() + ".jpg");
+                InputStream in = getContentResolver().openInputStream(uri);
+                FileOutputStream out = new FileOutputStream(file);
+                byte[] buffer = new byte[8192];
+                int n;
+                while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+                in.close();
+                out.close();
+                photos[photoIndex] = file.getAbsolutePath();
+                msg("PHOTO SAVED");
+            } catch (Exception e) {
+                msg("PHOTO ERROR");
+            }
+        }
+
+        if (requestCode == 102) {
+            try {
+                OutputStream out = getContentResolver().openOutputStream(uri);
+                StringBuilder csv = new StringBuilder();
+                for (String f : FIELDS) csv.append("\"").append(f).append("\",");
+                csv.append("\n");
+
+                for (int i = 0; i < records.length(); i++) {
+                    JSONObject o = records.getJSONObject(i);
+                    for (String f : FIELDS) {
+                        String value = o.optString(f, "").replace("\"", "\"\"");
+                        csv.append("\"").append(value).append("\",");
+                    }
+                    csv.append("\n");
+                }
+                out.write(csv.toString().getBytes("UTF-8"));
+                out.close();
+                msg("CSV EXPORTED");
+            } catch (Exception e) {
+                msg("EXPORT ERROR");
+            }
+        }
+    }
+
+    private void changePassword() {
+        EditText old = new EditText(this);
+        old.setHint("OLD PASSWORD");
+        EditText next = new EditText(this);
+        next.setHint("NEW PASSWORD");
+
+        LinearLayout box = vertical();
+        box.addView(old);
+        box.addView(next);
+
+        new AlertDialog.Builder(this)
+            .setTitle("CHANGE PASSWORD")
+            .setView(box)
+            .setPositiveButton("SAVE", (d, w) -> {
+                String saved = prefs.getString("password", "Jvipin");
+                if (!old.getText().toString().equals(saved)) {
+                    msg("OLD PASSWORD WRONG");
+                } else if (next.getText().toString().trim().isEmpty()) {
+                    msg("ENTER NEW PASSWORD");
+                } else {
+                    prefs.edit().putString("password",
+                        next.getText().toString()).apply();
+                    msg("PASSWORD CHANGED");
+                }
+            }).setNegativeButton("CANCEL", null).show();
     }
 
     private void loadRecords() {
         try {
-            records = new JSONArray(
-                prefs.getString("records", "[]")
-            );
+            records = new JSONArray(prefs.getString(KEY, "[]"));
         } catch (Exception e) {
             records = new JSONArray();
         }
     }
 
     private void saveRecords() {
-        prefs.edit().putString("records", records.toString()).apply();
+        prefs.edit().putString(KEY, records.toString()).apply();
     }
 
     private LinearLayout vertical() {
@@ -101,796 +481,55 @@ public class MainActivity extends Activity {
         return l;
     }
 
-    private LinearLayout horizontal() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.HORIZONTAL);
-        l.setGravity(Gravity.CENTER_VERTICAL);
-        return l;
+    private void header(LinearLayout box, String title) {
+        TextView t = text(title, 23, white, true);
+        t.setPadding(16, 20, 16, 20);
+        t.setBackground(shape(navy, 18));
+        box.addView(t);
     }
 
-    private void pad(View v, int p) {
-        v.setPadding(dp(p), dp(p), dp(p), dp(p));
-    }
-
-    private TextView text(String value, int size, int color, boolean bold) {
+    private TextView text(String s, int size, int color, boolean bold) {
         TextView t = new TextView(this);
-        t.setText(value);
+        t.setText(s);
         t.setTextSize(size);
         t.setTextColor(color);
         if (bold) t.setTypeface(null, Typeface.BOLD);
+        t.setPadding(5, 7, 5, 7);
         return t;
+    }
+
+    private Button button(String s) {
+        Button b = new Button(this);
+        b.setText(s);
+        b.setTextColor(white);
+        b.setTextSize(14);
+        b.setAllCaps(false);
+        b.setBackground(shape(blue, 14));
+        b.setPadding(12, 8, 12, 8);
+        return b;
+    }
+
+    private void addHomeButton(String label, Runnable action) {
+        Button b = button(label);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+            -1, -2);
+        lp.setMargins(0, 10, 0, 4);
+        root.addView(b, lp);
+        b.setOnClickListener(v -> action.run());
+    }
+
+    private void addView(LinearLayout box, View v) {
+        box.addView(v);
     }
 
     private GradientDrawable shape(int color, int radius) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
-        d.setCornerRadius(dp(radius));
+        d.setCornerRadius(radius * getResources().getDisplayMetrics().density);
         return d;
     }
 
-    private Button makeButton(String value, int color) {
-        Button b = new Button(this);
-        b.setText(value);
-        b.setTextColor(WHITE);
-        b.setTextSize(14);
-        b.setAllCaps(false);
-        b.setTypeface(null, Typeface.BOLD);
-        b.setBackground(shape(color, 14));
-        return b;
-    }
-
-    private void addGap(LinearLayout box, int height) {
-        View v = new View(this);
-        box.addView(v, new LinearLayout.LayoutParams(-1, dp(height)));
-    }
-
-    private View lineView() {
-        View v = new View(this);
-        v.setBackgroundColor(Color.rgb(205, 215, 230));
-        v.setLayoutParams(
-            new LinearLayout.LayoutParams(-1, dp(1))
-        );
-        return v;
-    }
-
-    private void setScreen(View view) {
-        setContentView(view);
-    }
-
-    // LOGIN
-
-    private void showLogin() {
-        LinearLayout page = vertical();
-        page.setGravity(Gravity.CENTER);
-        page.setBackgroundColor(PALE);
-        pad(page, 24);
-
-        TextView title = text(
-            "VIPIN SERVICE CRM", 27, NAVY, true
-        );
-        title.setGravity(Gravity.CENTER);
-        page.addView(title);
-
-        addGap(page, 12);
-
-        TextView subtitle = text(
-            "SECURE LOGIN", 16, BLUE, true
-        );
-        subtitle.setGravity(Gravity.CENTER);
-        page.addView(subtitle);
-
-        addGap(page, 25);
-
-        EditText password = new EditText(this);
-        password.setSingleLine(true);
-        password.setHint("ENTER PASSWORD");
-        password.setInputType(129);
-        password.setBackground(shape(WHITE, 12));
-        pad(password, 12);
-        page.addView(password);
-
-        addGap(page, 18);
-
-        Button login = makeButton("OPEN APP", BLUE);
-        page.addView(login, new LinearLayout.LayoutParams(-1, dp(52)));
-
-        login.setOnClickListener(v -> {
-            String saved = prefs.getString("app_password", "Jvipin");
-            if (password.getText().toString().equals(saved)) {
-                showCRM();
-            } else {
-                Toast.makeText(
-                    this, "WRONG PASSWORD", Toast.LENGTH_SHORT
-                ).show();
-            }
-        });
-
-        setScreen(page);
-    }
-
-    // MAIN SCREEN
-
-    private void showCRM() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-
-        root = vertical();
-        root.setBackgroundColor(PALE);
-        pad(root, 14);
-        scroll.addView(root);
-
-        LinearLayout header = vertical();
-        header.setBackground(shape(NAVY, 20));
-        pad(header, 18);
-
-        header.addView(text(
-            "VIPIN SERVICE CRM", 23, WHITE, true
-        ));
-
-        header.addView(text(
-            "OFFLINE SERVICE RECORD MANAGEMENT",
-            11, WHITE, false
-        ));
-
-        root.addView(header);
-        addGap(root, 15);
-
-        addMenuButton("ADD NEW RECORD", BLUE, this::showFormNew);
-        addMenuButton("SEARCH RECORD", Color.rgb(0, 145, 125), this::showSearch);
-        addMenuButton("RECORD FOLDER", Color.rgb(120, 80, 175), this::showRecordFolder);
-        addMenuButton("EXPORT EXCEL / CSV", Color.rgb(210, 115, 35), this::exportCSV);
-        addMenuButton("CHANGE PASSWORD", NAVY, this::changePassword);
-
-        addGap(root, 12);
-
-        TextView info = text(
-            "TOTAL SAVED RECORDS: " + records.length(),
-            15, NAVY, true
-        );
-        root.addView(info);
-
-        setScreen(scroll);
-    }
-
-    private void addMenuButton(
-        String label, int color, Runnable action
-    ) {
-        Button b = makeButton(label, color);
-        LinearLayout.LayoutParams lp =
-            new LinearLayout.LayoutParams(-1, dp(54));
-        lp.bottomMargin = dp(11);
-        root.addView(b, lp);
-
-        b.setOnClickListener(v -> action.run());
-    }
-
-    // CHANGE PASSWORD
-
-    private void changePassword() {
-        LinearLayout box = vertical();
-        pad(box, 15);
-
-        EditText oldPass = new EditText(this);
-        oldPass.setHint("OLD PASSWORD");
-        oldPass.setInputType(129);
-        box.addView(oldPass);
-
-        EditText newPass = new EditText(this);
-        newPass.setHint("NEW PASSWORD");
-        newPass.setInputType(129);
-        box.addView(newPass);
-
-        new AlertDialog.Builder(this)
-            .setTitle("CHANGE PASSWORD")
-            .setView(box)
-            .setNegativeButton("CANCEL", null)
-            .setPositiveButton("SAVE", (d, w) -> {
-                String saved = prefs.getString("app_password", "Jvipin");
-
-                if (!oldPass.getText().toString().equals(saved)) {
-                    Toast.makeText(
-                        this, "OLD PASSWORD WRONG", Toast.LENGTH_SHORT
-                    ).show();
-                    return;
-                }
-
-                String np = newPass.getText().toString().trim();
-
-                if (np.length() < 4) {
-                    Toast.makeText(
-                        this, "PASSWORD MINIMUM 4 CHARACTERS",
-                        Toast.LENGTH_SHORT
-                    ).show();
-                    return;
-                }
-
-                prefs.edit().putString("app_password", np).apply();
-
-                Toast.makeText(
-                    this, "PASSWORD CHANGED", Toast.LENGTH_SHORT
-                ).show();
-            }).show();
-    }
-
-    // ADD / EDIT FORM
-
-    private void showFormNew() {
-        showForm(null);
-    }
-
-    private void showForm(JSONObject oldRecord) {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-
-        LinearLayout form = vertical();
-        form.setBackgroundColor(PALE);
-        pad(form, 15);
-        scroll.addView(form);
-
-        TextView heading = text(
-            oldRecord == null ? "ADD NEW RECORD" : "EDIT RECORD",
-            23, NAVY, true
-        );
-        form.addView(heading);
-        addGap(form, 12);
-
-        inputs = new EditText[FIELDS.length];
-
-        for (int i = 0; i < FIELDS.length; i++) {
-            final int index = i;
-
-            TextView label = text(
-                FIELDS[i], 13, NAVY, true
-            );
-            form.addView(label);
-
-            if (i == 13) {
-                paymentSpinner = new Spinner(this);
-
-                ArrayAdapter<String> adapter =
-                    new ArrayAdapter<>(
-                        this,
-                        android.R.layout.simple_spinner_item,
-                        PAYMENTS
-                    );
-
-                adapter.setDropDownViewResource(
-                    android.R.layout.simple_spinner_dropdown_item
-                );
-
-                paymentSpinner.setAdapter(adapter);
-                form.addView(paymentSpinner);
-
-                if (oldRecord != null) {
-                    String old = oldRecord.optString(FIELDS[i], "CASH");
-                    for (int j = 0; j < PAYMENTS.length; j++) {
-                        if (PAYMENTS[j].equals(old)) {
-                            paymentSpinner.setSelection(j);
-                            break;
-                        }
-                    }
-                }
-            } else {
-                EditText e = new EditText(this);
-                inputs[i] = e;
-                e.setSingleLine(false);
-                e.setTextSize(15);
-                e.setTextColor(DARK);
-                e.setHint("ENTER " + FIELDS[i]);
-                e.setBackground(shape(WHITE, 10));
-                pad(e, 10);
-
-                if (i == 0) {
-                    e.setFocusable(false);
-                    e.setOnClickListener(v -> showDatePicker(e));
-                }
-
-                if (i == 9 || i == 10 || i == 11 ||
-                    i == 12 || i == 3 || i == 4) {
-                    e.setInputType(8194);
-                }
-
-                if (oldRecord != null) {
-                    e.setText(oldRecord.optString(FIELDS[i], ""));
-                }
-
-                LinearLayout.LayoutParams lp =
-                    new LinearLayout.LayoutParams(-1, -2);
-                lp.bottomMargin = dp(10);
-                form.addView(e, lp);
-            }
-
-            addGap(form, 7);
-        }
-
-        Button save = makeButton("SAVE RECORD", BLUE);
-        form.addView(save, new LinearLayout.LayoutParams(-1, dp(52)));
-
-        Button back = makeButton("BACK", NAVY);
-        LinearLayout.LayoutParams bp =
-            new LinearLayout.LayoutParams(-1, dp(48));
-        bp.topMargin = dp(10);
-        form.addView(back, bp);
-
-        save.setOnClickListener(v -> {
-            try {
-                JSONObject obj = new JSONObject();
-
-                for (int i = 0; i < FIELDS.length; i++) {
-                    if (i == 13) {
-                        obj.put(
-                            FIELDS[i],
-                            paymentSpinner.getSelectedItem().toString()
-                        );
-                    } else {
-                        obj.put(
-                            FIELDS[i],
-                            inputs[i].getText().toString().trim()
-                        );
-                    }
-                }
-
-                if (obj.optString("DATE").isEmpty()) {
-                    Toast.makeText(
-                        this, "PLEASE SELECT DATE", Toast.LENGTH_SHORT
-                    ).show();
-                    return;
-                }
-
-                if (oldRecord == null) {
-                    records.put(obj);
-                } else {
-                    int position = findRecordIndex(oldRecord);
-                    if (position >= 0) {
-                        records.put(position, obj);
-                    }
-                }
-
-                saveRecords();
-
-                Toast.makeText(
-                    this, "RECORD SAVED SUCCESSFULLY",
-                    Toast.LENGTH_SHORT
-                ).show();
-
-                showCRM();
-
-            } catch (Exception ex) {
-                Toast.makeText(
-                    this, "ERROR SAVING RECORD", Toast.LENGTH_SHORT
-                ).show();
-            }
-        });
-
-        back.setOnClickListener(v -> showCRM());
-
-        setScreen(scroll);
-    }
-
-    private int findRecordIndex(JSONObject target) {
-        for (int i = 0; i < records.length(); i++) {
-            JSONObject item = records.optJSONObject(i);
-            if (item == target) return i;
-        }
-
-        for (int i = 0; i < records.length(); i++) {
-            JSONObject item = records.optJSONObject(i);
-            if (item != null &&
-                item.optString("BILL NUMBER").equals(
-                    target.optString("BILL NUMBER")
-                ) &&
-                item.optString("CUSTOMER NAME").equals(
-                    target.optString("CUSTOMER NAME")
-                ) &&
-                item.optString("DATE").equals(
-                    target.optString("DATE")
-                )) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private void showDatePicker(EditText field) {
-        Calendar c = Calendar.getInstance();
-
-        DatePickerDialog picker = new DatePickerDialog(
-            this,
-            (view, year, month, day) -> {
-                field.setText(String.format(
-                    Locale.getDefault(),
-                    "%02d-%02d-%04d",
-                    day, month + 1, year
-                ));
-            },
-            c.get(Calendar.YEAR),
-            c.get(Calendar.MONTH),
-            c.get(Calendar.DAY_OF_MONTH)
-        );
-
-        picker.show();
-    }
-
-    // SEARCH
-
-    private void showSearch() {
-        LinearLayout page = vertical();
-        page.setBackgroundColor(PALE);
-        pad(page, 14);
-
-        page.addView(text("SEARCH RECORD", 22, NAVY, true));
-
-        EditText search = new EditText(this);
-        search.setHint("BILL NUMBER / CUSTOMER NAME / MOBILE NUMBER");
-        search.setSingleLine(true);
-        search.setBackground(shape(WHITE, 12));
-        pad(search, 10);
-        page.addView(search);
-
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout results = vertical();
-        pad(results, 5);
-        scroll.addView(results);
-
-        page.addView(scroll, new LinearLayout.LayoutParams(
-            -1, 0, 1
-        ));
-
-        Button back = makeButton("BACK", NAVY);
-        page.addView(back);
-
-        Runnable update = () -> {
-            results.removeAllViews();
-
-            String q = search.getText().toString().toLowerCase().trim();
-
-            for (int i = records.length() - 1; i >= 0; i--) {
-                JSONObject obj = records.optJSONObject(i);
-                if (obj == null) continue;
-
-                String bill = obj.optString("BILL NUMBER").toLowerCase();
-                String name = obj.optString("CUSTOMER NAME").toLowerCase();
-                String mobile = obj.optString("MOBILE NUMBER").toLowerCase();
-
-                if (q.isEmpty() || bill.contains(q) ||
-                    name.contains(q) || mobile.contains(q)) {
-                    results.addView(recordCard(obj));
-                    results.addView(lineView());
-                }
-            }
-        };
-
-        search.addTextChangedListener(new android.text.TextWatcher() {
-            public void beforeTextChanged(
-                CharSequence s, int start, int count, int after
-            ) {}
-
-            public void onTextChanged(
-                CharSequence s, int start, int before, int count
-            ) {
-                update.run();
-            }
-
-            public void afterTextChanged(android.text.Editable e) {}
-        });
-
-        update.run();
-
-        back.setOnClickListener(v -> showCRM());
-        setScreen(page);
-    }
-
-    // RECORD FOLDER
-
-    private void showRecordFolder() {
-        LinearLayout page = vertical();
-        page.setBackgroundColor(PALE);
-        pad(page, 14);
-
-        page.addView(text("RECORD FOLDER", 22, NAVY, true));
-
-        LinearLayout filters = horizontal();
-
-        Spinner month = new Spinner(this);
-        String[] months = {
-            "ALL MONTHS", "01", "02", "03", "04", "05",
-            "06", "07", "08", "09", "10", "11", "12"
-        };
-
-        month.setAdapter(new ArrayAdapter<>(
-            this, android.R.layout.simple_spinner_dropdown_item, months
-        ));
-
-        Spinner year = new Spinner(this);
-        String currentYear = new SimpleDateFormat(
-            "yyyy", Locale.getDefault()
-        ).format(new Date());
-
-        String[] years = new String[16];
-        years[0] = "ALL YEARS";
-        int y = Integer.parseInt(currentYear);
-        for (int i = 1; i < years.length; i++) {
-            years[i] = String.valueOf(y - i + 1);
-        }
-
-        year.setAdapter(new ArrayAdapter<>(
-            this, android.R.layout.simple_spinner_dropdown_item, years
-        ));
-
-        filters.addView(month, new LinearLayout.LayoutParams(0, -2, 1));
-        filters.addView(year, new LinearLayout.LayoutParams(0, -2, 1));
-        page.addView(filters);
-
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout list = vertical();
-        pad(list, 5);
-        scroll.addView(list);
-
-        page.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-
-        LinearLayout totals = vertical();
-        totals.setBackground(shape(WHITE, 12));
-        pad(totals, 12);
-        page.addView(totals);
-
-        Runnable refresh = () -> {
-            list.removeAllViews();
-            totals.removeAllViews();
-
-            String m = month.getSelectedItem().toString();
-            String yr = year.getSelectedItem().toString();
-
-            JSONArray filtered = new JSONArray();
-
-            for (int i = records.length() - 1; i >= 0; i--) {
-                JSONObject obj = records.optJSONObject(i);
-                if (obj == null) continue;
-
-                String date = obj.optString("DATE");
-                String[] parts = date.split("-");
-
-                boolean match = parts.length == 3;
-
-                if (match && !m.equals("ALL MONTHS")) {
-                    match = parts[1].equals(m);
-                }
-
-                if (match && !yr.equals("ALL YEARS")) {
-                    match = parts[2].equals(yr);
-                }
-
-                if (match) {
-                    filtered.put(obj);
-                    list.addView(recordCard(obj));
-                    list.addView(lineView());
-                }
-            }
-
-            addTotal(totals, "TOTAL RECORDS", filtered.length());
-
-            String[] totalFields = {
-                "AMC", "COLLECTION", "AMOUNT",
-                "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"
-            };
-
-            for (String field : totalFields) {
-                double sum = 0;
-
-                for (int i = 0; i < filtered.length(); i++) {
-                    JSONObject obj = filtered.optJSONObject(i);
-                    if (obj != null) {
-                        sum += number(obj.optString(field));
-                    }
-                }
-
-                addTotal(totals, field, sum);
-            }
-        };
-
-        month.setOnItemSelectedListener(new SimpleSelectListener(refresh));
-        year.setOnItemSelectedListener(new SimpleSelectListener(refresh));
-
-        Button back = makeButton("BACK", NAVY);
-        page.addView(back);
-        back.setOnClickListener(v -> showCRM());
-
-        refresh.run();
-        setScreen(page);
-    }
-
-    private static class SimpleSelectListener
-        implements AdapterView.OnItemSelectedListener {
-
-        private final Runnable action;
-
-        SimpleSelectListener(Runnable r) {
-            action = r;
-        }
-
-        public void onItemSelected(
-            AdapterView<?> p, View v, int position, long id
-        ) {
-            action.run();
-        }
-
-        public void onNothingSelected(AdapterView<?> p) {}
-    }
-
-    private void addTotal(LinearLayout box, String name, double value) {
-        TextView t = text(
-            name + ": " + formatNumber(value),
-            14, NAVY, true
-        );
-        box.addView(t);
-        box.addView(lineView());
-    }
-
-    private void addTotal(LinearLayout box, String name, int value) {
-        TextView t = text(
-            name + ": " + value,
-            14, NAVY, true
-        );
-        box.addView(t);
-    }
-
-    private double number(String value) {
-        try {
-            return Double.parseDouble(
-                value.replace(",", "").trim()
-            );
-        } catch (Exception e) {
-            return 0;
-        }
-    }
-
-    private String formatNumber(double n) {
-        if (n == Math.floor(n)) {
-            return String.format(Locale.US, "%.0f", n);
-        }
-        return String.format(Locale.US, "%.2f", n);
-    }
-
-    // RECORD CARD
-
-    private View recordCard(JSONObject obj) {
-        LinearLayout card = vertical();
-        card.setBackground(shape(WHITE, 12));
-        pad(card, 12);
-
-        String[] show = {
-            "DATE", "BILL NUMBER", "PRODUCT NAME",
-            "CUSTOMER NAME", "MOBILE NUMBER",
-            "AMC", "COLLECTION", "AMOUNT",
-            "SPARE AMOUNT", "WARRANTY AMOUNT",
-            "NET AMOUNT", "PAYMENT MODE",
-            "ADDRESS", "SPARE PARTS", "REMARKS"
-        };
-
-        for (String key : show) {
-            String value = obj.optString(key, "");
-            if (!value.isEmpty()) {
-                card.addView(text(
-                    key + ": " + value, 13, DARK, false
-                ));
-            }
-        }
-
-        addGap(card, 8);
-
-        LinearLayout actions = horizontal();
-
-        Button edit = makeButton("EDIT", BLUE);
-        Button delete = makeButton("DELETE", Color.rgb(190, 45, 55));
-
-        actions.addView(edit, new LinearLayout.LayoutParams(0, dp(44), 1));
-        actions.addView(delete, new LinearLayout.LayoutParams(0, dp(44), 1));
-
-        card.addView(actions);
-
-        edit.setOnClickListener(v -> showForm(obj));
-
-        delete.setOnClickListener(v -> {
-            new AlertDialog.Builder(this)
-                .setTitle("DELETE RECORD?")
-                .setMessage("ARE YOU SURE?")
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("DELETE", (d, w) -> {
-                    int index = findRecordIndex(obj);
-                    if (index >= 0) {
-                        records.remove(index);
-                        saveRecords();
-                        showCRM();
-                    }
-                }).show();
-        });
-
-        return card;
-    }
-
-    // CSV EXPORT
-
-    private void exportCSV() {
-        if (records.length() == 0) {
-            Toast.makeText(
-                this, "NO RECORD TO EXPORT", Toast.LENGTH_SHORT
-            ).show();
-            return;
-        }
-
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/csv");
-        intent.putExtra(
-            Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv"
-        );
-
-        startActivityForResult(intent, EXPORT_REQUEST);
-    }
-
-    @Override
-    protected void onActivityResult(
-        int requestCode, int resultCode, Intent data
-    ) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == EXPORT_REQUEST &&
-            resultCode == RESULT_OK && data != null) {
-
-            Uri uri = data.getData();
-
-            try {
-                OutputStream out = getContentResolver()
-                    .openOutputStream(uri);
-
-                if (out == null) throw new Exception("File error");
-
-                StringBuilder csv = new StringBuilder();
-
-                csv.append('\uFEFF');
-
-                for (int i = 0; i < FIELDS.length; i++) {
-                    csv.append(csvCell(FIELDS[i]));
-                    if (i < FIELDS.length - 1) csv.append(",");
-                }
-                csv.append("\r\n");
-
-                for (int r = 0; r < records.length(); r++) {
-                    JSONObject obj = records.optJSONObject(r);
-                    if (obj == null) continue;
-
-                    for (int i = 0; i < FIELDS.length; i++) {
-                        csv.append(
-                            csvCell(obj.optString(FIELDS[i], ""))
-                        );
-                        if (i < FIELDS.length - 1) csv.append(",");
-                    }
-                    csv.append("\r\n");
-                }
-
-                out.write(csv.toString().getBytes(StandardCharsets.UTF_8));
-                out.close();
-
-                Toast.makeText(
-                    this, "CSV EXPORTED SUCCESSFULLY",
-                    Toast.LENGTH_LONG
-                ).show();
-
-            } catch (Exception e) {
-                Toast.makeText(
-                    this, "EXPORT FAILED",
-                    Toast.LENGTH_SHORT
-                ).show();
-            }
-        }
-    }
-
-    private String csvCell(String value) {
-        if (value == null) value = "";
-        return "\"" + value.replace("\"", "\"\"") + "\"";
-    }
-
-    @Override
-    public void onBackPressed() {
-        showCRM();
+    private void msg(String s) {
+        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
     }
 }
