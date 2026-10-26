@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private String selectedPhoto = "";
     private String selectedPdf = "";
     private TextView photoStatus, pdfStatus;
+    private AlertDialog recordDialog;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -94,103 +95,142 @@ public class MainActivity extends Activity {
     }
 
     private void showLogin() {
-        LinearLayout page = vertical();
-        page.setGravity(Gravity.CENTER);
-        page.setPadding(dp(28), dp(24), dp(28), dp(24));
-        page.setBackground(gradient(new int[]{NAVY, BLUE, Color.rgb(9, 36, 94)}, 0));
+    LinearLayout page = vertical();
+    page.setGravity(Gravity.CENTER);
+    page.setPadding(dp(28), dp(24), dp(28), dp(24));
+    page.setBackground(gradient(
+            new int[]{NAVY, BLUE, Color.rgb(9, 36, 94)}, 0));
 
-        TextView logo = text("V", 54, WHITE, true);
-        logo.setGravity(Gravity.CENTER);
-        logo.setBackground(circle(CYAN));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(104), dp(104));
-        lp.gravity = Gravity.CENTER;
-        logo.setElevation(dp(22));
-        logo.setRotationY(-24f);
-        page.addView(logo, lp);
-        logo.animate().rotationY(0f).rotationX(0f).scaleX(1.08f).scaleY(1.08f)
-                .setDuration(850).setInterpolator(new DecelerateInterpolator())
-                .withEndAction(() -> logo.animate().scaleX(1f).scaleY(1f).setDuration(260).start()).start();
+    ImageView logo = new ImageView(this);
+    logo.setImageResource(R.drawable.vipin_logo);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-        TextView title = text("VIPIN SERVICE CRM", 25, WHITE, true);
-        title.setGravity(Gravity.CENTER);
-        title.setPadding(0, dp(22), 0, dp(8));
-        page.addView(title);
+    LinearLayout.LayoutParams lp =
+            new LinearLayout.LayoutParams(dp(180), dp(180));
+    lp.gravity = Gravity.CENTER;
+    page.addView(logo, lp);
 
-        TextView sub = text("SERVICE  •  COLLECTION  •  RECORDS", 12, Color.rgb(205, 225, 255), true);
-        sub.setGravity(Gravity.CENTER);
-        page.addView(sub);
+    logo.setScaleX(0.7f);
+    logo.setScaleY(0.7f);
+    logo.animate().scaleX(1f).scaleY(1f)
+            .setDuration(850)
+            .setInterpolator(new DecelerateInterpolator())
+            .start();
 
-        EditText pin = new EditText(this);
-        pin.setSingleLine(true);
-        pin.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        pin.setHint("ENTER PASSWORD");
-        pin.setHintTextColor(Color.LTGRAY);
-        pin.setTextColor(WHITE);
-        pin.setPadding(dp(18), dp(14), dp(18), dp(14));
-        pin.setBackground(round(Color.rgb(34, 65, 125), dp(16), Color.rgb(100, 155, 255), dp(1)));
-        LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(56));
-        ep.topMargin = dp(32);
-        page.addView(pin, ep);
+    TextView title = text("VIPIN SERVICE CRM", 25, WHITE, true);
+    title.setGravity(Gravity.CENTER);
+    title.setPadding(0, dp(22), 0, dp(8));
+    page.addView(title);
 
-        Button login = button("UNLOCK CRM");
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(56));
-        bp.topMargin = dp(16);
-        page.addView(login, bp);
-        login.setOnClickListener(v -> {
-            if (pin.getText().toString().equals(password())) {
-                tap(v);
-                showCRM();
-            } else {
-                pin.setError("WRONG PASSWORD");
-                shake(pin);
-            }
-        });
+    TextView sub = text(
+            "SERVICE  •  COLLECTION  •  RECORDS",
+            12, Color.rgb(205, 225, 255), true);
+    sub.setGravity(Gravity.CENTER);
+    page.addView(sub);
 
-        TextView hint = text("DEFAULT PASSWORD: 1234", 11, Color.rgb(190, 210, 245), false);
-        hint.setGravity(Gravity.CENTER);
-        hint.setPadding(0, dp(18), 0, 0);
-        page.addView(hint);
-        setContentView(page);
-        enter(page);
-    }
+    EditText pin = new EditText(this);
+    pin.setSingleLine(true);
+    pin.setInputType(
+            InputType.TYPE_CLASS_TEXT |
+            InputType.TYPE_TEXT_VARIATION_PASSWORD);
+    pin.setHint("ENTER PASSWORD");
+    pin.setHintTextColor(Color.LTGRAY);
+    pin.setTextColor(WHITE);
+    pin.setPadding(dp(18), dp(14), dp(18), dp(14));
+    pin.setBackground(round(
+            Color.rgb(34, 65, 125), dp(16),
+            Color.rgb(100, 155, 255), dp(1)));
 
-    private void showCRM() {
-        base = vertical();
-        base.setBackgroundColor(PALE);
+    LinearLayout.LayoutParams ep =
+            new LinearLayout.LayoutParams(-1, dp(56));
+    ep.topMargin = dp(32);
+    page.addView(pin, ep);
 
-        LinearLayout header = vertical();
-        header.setPadding(dp(20), dp(22), dp(20), dp(20));
-        header.setBackground(gradient(new int[]{NAVY, Color.rgb(18, 54, 125), BLUE}, dp(26)));
-        header.addView(text("VIPIN SERVICE CRM", 24, WHITE, true));
-        TextView subtitle = text("✦  SERVICE  •  COLLECTION  •  RECORDS", 12, Color.rgb(205, 225, 255), true);
-        subtitle.setPadding(0, dp(7), 0, 0);
-        header.addView(subtitle);
+    Button login = button("UNLOCK CRM");
+    LinearLayout.LayoutParams bp =
+            new LinearLayout.LayoutParams(-1, dp(56));
+    bp.topMargin = dp(16);
+    page.addView(login, bp);
 
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
-        hp.setMargins(dp(14), dp(12), dp(14), dp(10));
-        header.setElevation(dp(18));
-        header.setTranslationZ(dp(8));
-        header.setRotationX(2.5f);
-        base.addView(header, hp);
-        header.animate().rotationX(0f).translationZ(dp(4)).setDuration(650)
-                .setInterpolator(new DecelerateInterpolator()).start();
+    login.setOnClickListener(v -> {
+        if (pin.getText().toString().equals(password())) {
+            tap(v);
+            showCRM();
+        } else {
+            pin.setError("WRONG PASSWORD");
+            shake(pin);
+        }
+    });
 
-        content = vertical();
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.setClipToPadding(false);
-        scroll.addView(content);
-        base.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    TextView hint = text(
+            "DEFAULT PASSWORD: 1234",
+            11, Color.rgb(190, 210, 245), false);
+    hint.setGravity(Gravity.CENTER);
+    hint.setPadding(0, dp(18), 0, 0);
+    page.addView(hint);
 
-        nav = new LinearLayout(this);
-        nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(5), dp(8), dp(5), dp(8));
-        nav.setBackgroundColor(WHITE);
-        base.addView(nav, new LinearLayout.LayoutParams(-1, dp(68)));
+    setContentView(page);
+    enter(page);
+}
+private void showCRM() {
+    base = vertical();
+    base.setBackgroundColor(PALE);
 
-        setContentView(base);
-        renderPage("DASHBOARD");
-    }
+    LinearLayout header = vertical();
+    header.setGravity(Gravity.CENTER);
+    header.setPadding(dp(20), dp(22), dp(20), dp(20));
+    header.setBackground(gradient(
+            new int[]{NAVY, Color.rgb(18, 54, 125), BLUE}, dp(26)));
+
+    ImageView homeLogo = new ImageView(this);
+    homeLogo.setImageResource(R.drawable.vipin_logo);
+    homeLogo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+    header.addView(homeLogo,
+            new LinearLayout.LayoutParams(dp(90), dp(90)));
+
+    header.addView(text("VIPIN SERVICE CRM", 24, WHITE, true));
+
+    TextView subtitle = text(
+            "✦  SERVICE  •  COLLECTION  •  RECORDS",
+            12, Color.rgb(205, 225, 255), true);
+    subtitle.setPadding(0, dp(7), 0, 0);
+    header.addView(subtitle);
+
+    LinearLayout.LayoutParams hp =
+            new LinearLayout.LayoutParams(-1, -2);
+    hp.setMargins(dp(14), dp(12), dp(14), dp(10));
+
+    header.setElevation(dp(18));
+    header.setTranslationZ(dp(8));
+    header.setRotationX(2.5f);
+    base.addView(header, hp);
+
+    header.animate().rotationX(0f).translationZ(dp(4))
+            .setDuration(650)
+            .setInterpolator(new DecelerateInterpolator())
+            .start();
+
+    content = vertical();
+
+    ScrollView scroll = new ScrollView(this);
+    scroll.setFillViewport(true);
+    scroll.setClipToPadding(false);
+    scroll.addView(content);
+
+    base.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+
+    nav = new LinearLayout(this);
+    nav.setGravity(Gravity.CENTER);
+    nav.setPadding(dp(5), dp(8), dp(5), dp(8));
+    nav.setBackgroundColor(WHITE);
+
+    base.addView(nav, new LinearLayout.LayoutParams(-1, dp(68)));
+
+    setContentView(base);
+    renderPage("DASHBOARD");
+}
+    
 
     private void renderPage(String page) {
         currentPage = page;
@@ -586,17 +626,21 @@ public class MainActivity extends Activity {
 
                 if (existing == null) records.put(obj);
                 else records.put(editingIndex, obj);
-
-                saveRecords();
-                Toast.makeText(this, "RECORD SAVED SUCCESSFULLY", Toast.LENGTH_SHORT).show();
-                showCRM();
+saveRecords();
+if (recordDialog != null) recordDialog.dismiss();
+Toast.makeText(this, "RECORD SAVED SUCCESSFULLY", Toast.LENGTH_SHORT).show();
+                
                 renderPage("RECORDS");
             } catch (Exception ex) {
                 Toast.makeText(this, "SAVE FAILED: " + ex.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
 
-        new AlertDialog.Builder(this).setView(sc).setNegativeButton("CLOSE", null).show();
+        recordDialog = new AlertDialog.Builder(this)
+        .setView(sc)
+        .setNegativeButton("CLOSE", null)
+        .create();
+recordDialog.show();
         enter(form);
     }
 
