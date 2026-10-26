@@ -1,18 +1,20 @@
 package com.vipin.servicecrm;
 
-import android.app.;
-import android.os.;
-import android.content.;
-import android.graphics.;
+
+import android.app.*;
+import android.os.*;
+import android.content.*;
+import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.view.;
-import android.view.animation.;
-import android.widget.;
-import org.json.;
-import java.io.;
+import android.view.*;
+import android.view.animation.*;
+import android.widget.*;
+import org.json.*;
+import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.;
+import java.util.*;
+
 
 public class MainActivity extends Activity {
 
