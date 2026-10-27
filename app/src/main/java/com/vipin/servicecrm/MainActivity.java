@@ -98,6 +98,22 @@ public class MainActivity extends Activity {
     }
 
     private TextView text(String value, int size, int color, boolean bold) {
+        
+private void addLogo(LinearLayout parent, int sizeDp) {
+    ImageView logo = new ImageView(this);
+    logo.setImageResource(R.drawable.vipin_service_crm_final_icon);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+    logo.setAdjustViewBounds(true);
+
+    LinearLayout.LayoutParams p =
+        new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
+
+    p.gravity = Gravity.CENTER_HORIZONTAL;
+    p.bottomMargin = dp(10);
+
+    parent.addView(logo, p);
+}
+
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
@@ -192,6 +208,7 @@ public class MainActivity extends Activity {
     private void showLogin() {
         currentPage = "LOGIN";
         pageBase("VIPIN SERVICE CRM");
+        addLogo(root, 150);
 
         TextView welcome = text(
             "OFFLINE SERVICE RECORD MANAGER", 14, navy, true
@@ -326,6 +343,7 @@ public class MainActivity extends Activity {
             Color.rgb(38, 48, 180),
             Color.rgb(0, 105, 255), 22
         ));
+        addLogo(banner, 125);
 
         TextView heading = text(
             "🔧 VIPIN SERVICE CRM", 23, Color.WHITE, true
