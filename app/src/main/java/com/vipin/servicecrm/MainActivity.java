@@ -97,29 +97,30 @@ public class MainActivity extends Activity {
         return l;
     }
 
+    // FIXED TEXT METHOD
     private TextView text(String value, int size, int color, boolean bold) {
-        
-private void addLogo(LinearLayout parent, int sizeDp) {
-    ImageView logo = new ImageView(this);
-    logo.setImageResource(R.drawable.vipin_service_crm_final_icon);
-    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-    logo.setAdjustViewBounds(true);
-
-    LinearLayout.LayoutParams p =
-        new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
-
-    p.gravity = Gravity.CENTER_HORIZONTAL;
-    p.bottomMargin = dp(10);
-
-    parent.addView(logo, p);
-}
-
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
         t.setTextColor(color);
         if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         return t;
+    }
+
+    // FIXED LOGO METHOD
+    private void addLogo(LinearLayout parent, int sizeDp) {
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.vipin_service_crm_icon_512);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        logo.setAdjustViewBounds(true);
+
+        LinearLayout.LayoutParams p =
+            new LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp));
+
+        p.gravity = Gravity.CENTER_HORIZONTAL;
+        p.bottomMargin = dp(10);
+
+        parent.addView(logo, p);
     }
 
     private void pageBase(String title) {
