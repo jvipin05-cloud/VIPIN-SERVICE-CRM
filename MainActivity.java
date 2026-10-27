@@ -19,12 +19,14 @@ public class MainActivity extends Activity {
 
     private static final String PREF = "vipin_crm_data";
     private static final String KEY = "records";
+
     private static final String[] FIELDS = {
         "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC",
         "COLLECTION", "CUSTOMER NAME", "MOBILE NUMBER",
         "ADDRESS", "SPARE PARTS", "AMOUNT", "SPARE AMOUNT",
         "WARRANTY AMOUNT", "NET AMOUNT", "PAYMENT MODE", "REMARKS"
     };
+
     private static final String[] PAYMENTS = {
         "CASH", "UPI", "PS UPI", "RKS UPI"
     };
@@ -38,6 +40,7 @@ public class MainActivity extends Activity {
     private JSONArray records = new JSONArray();
     private EditText[] inputs = new EditText[FIELDS.length];
     private String[] photos = new String[3];
+
     private int editing = -1;
     private int photoIndex = 0;
     private int selectedMonth = -1;
@@ -48,23 +51,43 @@ public class MainActivity extends Activity {
     @Override
     public void onCreate(Bundle b) {
         super.onCreate(b);
+
         prefs = getSharedPreferences(PREF, MODE_PRIVATE);
         loadRecords();
         showSplash();
     }
 
+    // LOGO IMAGE
+    private ImageView logoImage(int size) {
+        ImageView img = new ImageView(this);
+
+        img.setImageResource(R.drawable.vipin_logo);
+        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+        img.setLayoutParams(new LinearLayout.LayoutParams(
+            size, size
+        ));
+
+        return img;
+    }
+
+    // SPLASH SCREEN
     private void showSplash() {
         LinearLayout box = vertical();
         box.setGravity(Gravity.CENTER);
+        box.setPadding(20, 20, 20, 20);
         box.setBackgroundColor(navy);
 
-        TextView logo = text("VIPIN", 42, white, true);
-        TextView sub = text("SERVICE CRM", 24, white, true);
-        TextView line = text("SERVICE • RECORD • MANAGEMENT", 12, white, false);
+        ImageView logo = logoImage(130);
+        TextView title = text("VIPIN SERVICE CRM", 25, white, true);
+        TextView sub = text(
+            "SERVICE • RECORD • MANAGEMENT", 12, white, false
+        );
 
         box.addView(logo);
+        box.addView(title);
         box.addView(sub);
-        box.addView(line);
+
         setContentView(box);
 
         ScaleAnimation anim = new ScaleAnimation(
@@ -72,20 +95,29 @@ public class MainActivity extends Activity {
             Animation.RELATIVE_TO_SELF, 0.5f,
             Animation.RELATIVE_TO_SELF, 0.5f
         );
+
         anim.setDuration(900);
         logo.startAnimation(anim);
 
-        new Handler().postDelayed(() -> showLogin(), 1300);
+        new Handler().postDelayed(
+            () -> showLogin(), 1300
+        );
     }
 
+    // LOGIN
     private void showLogin() {
         LinearLayout box = vertical();
         box.setGravity(Gravity.CENTER);
         box.setPadding(28, 28, 28, 28);
         box.setBackgroundColor(pale);
 
-        box.addView(text("VIPIN SERVICE CRM", 27, navy, true));
-        box.addView(text("LOGIN TO CONTINUE", 14, blue, true));
+        box.addView(logoImage(100));
+        box.addView(text(
+            "VIPIN SERVICE CRM", 27, navy, true
+        ));
+        box.addView(text(
+            "LOGIN TO CONTINUE", 14, blue, true
+        ));
 
         EditText pass = new EditText(this);
         pass.setHint("ENTER PASSWORD");
@@ -98,6 +130,7 @@ public class MainActivity extends Activity {
 
         login.setOnClickListener(v -> {
             String saved = prefs.getString("password", "Jvipin");
+
             if (pass.getText().toString().equals(saved)) {
                 showHome();
             } else {
@@ -108,103 +141,190 @@ public class MainActivity extends Activity {
         setContentView(box);
     }
 
+    // HOME SCREEN
     private void showHome() {
         ScrollView scroll = new ScrollView(this);
+
         root = vertical();
         root.setPadding(16, 18, 16, 25);
         root.setBackgroundColor(pale);
+
         scroll.addView(root);
 
         header(root, "VIPIN SERVICE CRM");
 
         addHomeButton("ADD NEW RECORD", this::showForm);
         addHomeButton("SEARCH RECORD", this::searchRecords);
-        addHomeButton("RECORD FOLDER - MONTH / YEAR", this::showFolder);
+        addHomeButton(
+            "RECORD FOLDER - MONTH / YEAR",
+            this::showFolder
+        );
         addHomeButton("EXPORT EXCEL / CSV", this::exportCSV);
         addHomeButton("CHANGE PASSWORD", this::changePassword);
 
-        addView(root, text("TOTAL RECORDS: " + records.length(),
-            16, navy, true));
+        addView(root, text(
+            "TOTAL RECORDS: " + records.length(),
+            16, navy, true
+        ));
 
         setContentView(scroll);
     }
 
+    // ADD RECORD
     private void showForm() {
         editing = -1;
         photos = new String[3];
         showFormScreen(null);
     }
 
+    // FORM SCREEN
     private void showFormScreen(JSONObject old) {
         ScrollView scroll = new ScrollView(this);
+
         LinearLayout panel = vertical();
         panel.setPadding(14, 15, 14, 25);
         panel.setBackgroundColor(pale);
+
         scroll.addView(panel);
 
-        header(panel, editing < 0 ? "ADD NEW RECORD" : "EDIT RECORD");
+        header(panel,
+            editing < 0 ? "ADD NEW RECORD" : "EDIT RECORD"
+        );
 
         for (int i = 0; i < FIELDS.length; i++) {
-            panel.addView(text(FIELDS[i], 13, navy, true));
+
+            panel.addView(text(
+                FIELDS[i], 13, navy, true
+            ));
 
             if (i == 14) {
                 inputs[i] = new EditText(this);
                 inputs[i].setHint(FIELDS[i]);
                 inputs[i].setMinLines(2);
+                inputs[i].setGravity(Gravity.TOP);
                 panel.addView(inputs[i]);
+
             } else if (i == 13) {
+
                 Spinner sp = new Spinner(this);
-                ArrayAdapter<String> ad = new ArrayAdapter<>(
-                    this, android.R.layout.simple_spinner_dropdown_item, PAYMENTS
-                );
+
+                ArrayAdapter<String> ad =
+                    new ArrayAdapter<>(
+                        this,
+                        android.R.layout.simple_spinner_dropdown_item,
+                        PAYMENTS
+                    );
+
                 sp.setAdapter(ad);
                 panel.addView(sp);
+
                 inputs[i] = new EditText(this);
                 inputs[i].setVisibility(View.GONE);
                 panel.addView(inputs[i]);
-                sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                    public void onNothingSelected(android.widget.AdapterView<?> p) {}
-                    public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id) {
+
+                sp.setOnItemSelectedListener(
+                    new android.widget.AdapterView.OnItemSelectedListener() {
+
+                    public void onNothingSelected(
+                        android.widget.AdapterView<?> p) {}
+
+                    public void onItemSelected(
+                        android.widget.AdapterView<?> p,
+                        View v, int pos, long id) {
+
                         inputs[13].setText(PAYMENTS[pos]);
                     }
                 });
+
+                if (old != null) {
+                    String payment = old.optString(
+                        "PAYMENT MODE", "CASH"
+                    );
+
+                    int pos = 0;
+                    for (int x = 0; x < PAYMENTS.length; x++) {
+                        if (PAYMENTS[x].equals(payment)) {
+                            pos = x;
+                            break;
+                        }
+                    }
+                    sp.setSelection(pos);
+                }
+
             } else {
+
                 inputs[i] = new EditText(this);
                 inputs[i].setHint("ENTER " + FIELDS[i]);
+
                 inputs[i].setSingleLine(i != 7);
+
                 if (i == 0) {
                     inputs[i].setFocusable(false);
-                    inputs[i].setOnClickListener(v -> pickDate(inputs[i]));
-                    inputs[i].setText(new SimpleDateFormat(
-                        "dd-MM-yyyy", Locale.getDefault()
-                    ).format(new Date()));
+                    inputs[i].setClickable(true);
+
+                    inputs[i].setOnClickListener(v ->
+                        pickDate(inputs[0])
+                    );
+
+                    if (old == null) {
+                        inputs[i].setText(
+                            new SimpleDateFormat(
+                                "dd-MM-yyyy",
+                                Locale.getDefault()
+                            ).format(new Date())
+                        );
+                    }
                 }
-                if (i == 3 || i == 4 || (i >= 9 && i <= 12)) {
+
+                if (i == 3 || i == 4 ||
+                    (i >= 9 && i <= 12)) {
+
                     inputs[i].setInputType(8194);
                 }
+
                 panel.addView(inputs[i]);
             }
 
-            if (old != null) {
-                inputs[i].setText(old.optString(FIELDS[i], ""));
+            if (old != null && i != 13) {
+                inputs[i].setText(
+                    old.optString(FIELDS[i], "")
+                );
             }
         }
 
-        panel.addView(text("ATTACH PHOTOS (MAXIMUM 3)", 15, navy, true));
+        panel.addView(text(
+            "ATTACH PHOTOS (MAXIMUM 3)",
+            15, navy, true
+        ));
 
         LinearLayout photoRow = new LinearLayout(this);
+
         for (int i = 0; i < 3; i++) {
             final int index = i;
+
             Button p = button("PHOTO " + (i + 1));
-            photoRow.addView(p, new LinearLayout.LayoutParams(0, -2, 1));
+
+            photoRow.addView(
+                p,
+                new LinearLayout.LayoutParams(0, -2, 1)
+            );
+
             p.setOnClickListener(v -> {
                 photoIndex = index;
-                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+
+                Intent intent = new Intent(
+                    Intent.ACTION_OPEN_DOCUMENT
+                );
+
                 intent.setType("image/*");
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.addCategory(
+                    Intent.CATEGORY_OPENABLE
+                );
+
                 startActivityForResult(intent, 101);
             });
         }
+
         panel.addView(photoRow);
 
         Button save = button("SAVE RECORD");
@@ -218,24 +338,42 @@ public class MainActivity extends Activity {
         setContentView(scroll);
     }
 
+    // DATE PICKER
     private void pickDate(EditText target) {
         Calendar c = Calendar.getInstance();
-        new DatePickerDialog(this, (view, y, m, d) ->
-            target.setText(String.format(Locale.getDefault(),
-                "%02d-%02d-%04d", d, m + 1, y)),
-            c.get(Calendar.YEAR), c.get(Calendar.MONTH),
-            c.get(Calendar.DAY_OF_MONTH)).show();
+
+        new DatePickerDialog(
+            this,
+            (view, y, m, d) ->
+                target.setText(String.format(
+                    Locale.getDefault(),
+                    "%02d-%02d-%04d",
+                    d, m + 1, y
+                )),
+            c.get(Calendar.YEAR),
+            c.get(Calendar.MONTH),
+            c.get(Calendar.DAY_OF_MONTH)
+        ).show();
     }
 
+    // SAVE RECORD
     private void saveRecord() {
         try {
             JSONObject obj = new JSONObject();
+
             for (int i = 0; i < FIELDS.length; i++) {
-                obj.put(FIELDS[i], inputs[i].getText().toString().trim());
+                obj.put(
+                    FIELDS[i],
+                    inputs[i].getText().toString().trim()
+                );
             }
 
             JSONArray photoArray = new JSONArray();
-            for (String p : photos) photoArray.put(p == null ? "" : p);
+
+            for (String p : photos) {
+                photoArray.put(p == null ? "" : p);
+            }
+
             obj.put("PHOTOS", photoArray);
 
             if (editing >= 0) {
@@ -245,13 +383,16 @@ public class MainActivity extends Activity {
             }
 
             saveRecords();
+
             msg("RECORD SAVED SUCCESSFULLY");
             showHome();
+
         } catch (Exception e) {
             msg("SAVE ERROR: " + e.getMessage());
         }
     }
 
+    // SEARCH
     private void searchRecords() {
         EditText q = new EditText(this);
         q.setHint("BILL NUMBER / CUSTOMER / MOBILE");
@@ -260,16 +401,23 @@ public class MainActivity extends Activity {
             .setTitle("SEARCH RECORD")
             .setView(q)
             .setPositiveButton("SEARCH", (d, w) ->
-                showResults(q.getText().toString()))
-            .setNegativeButton("CANCEL", null).show();
+                showResults(q.getText().toString())
+            )
+            .setNegativeButton("CANCEL", null)
+            .show();
     }
 
+    // MONTH YEAR FOLDER
     private void showFolder() {
         Calendar c = Calendar.getInstance();
+
         int year = c.get(Calendar.YEAR);
+
         String[] months = new String[12];
+
         for (int i = 0; i < 12; i++) {
-            months[i] = new java.text.DateFormatSymbols().getMonths()[i];
+            months[i] =
+                new java.text.DateFormatSymbols().getMonths()[i];
         }
 
         new AlertDialog.Builder(this)
@@ -278,74 +426,127 @@ public class MainActivity extends Activity {
                 selectedMonth = which + 1;
                 selectedYear = year;
                 showMonthRecords();
-            }).show();
+            })
+            .setNegativeButton("CANCEL", null)
+            .show();
     }
 
     private void showMonthRecords() {
-        String month = String.format(Locale.getDefault(), "%02d", selectedMonth);
+        String month = String.format(
+            Locale.getDefault(), "%02d", selectedMonth
+        );
+
         JSONArray found = new JSONArray();
 
         for (int i = 0; i < records.length(); i++) {
             JSONObject o = records.optJSONObject(i);
-            String date = o == null ? "" : o.optString("DATE");
-            if (date.endsWith("-" + month + "-" + selectedYear)) {
+
+            String date = o == null ? "" :
+                o.optString("DATE");
+
+            if (date.endsWith(
+                "-" + month + "-" + selectedYear
+            )) {
                 found.put(o);
             }
         }
+
         showArray(found);
     }
 
+    // SEARCH RESULTS
     private void showResults(String query) {
         JSONArray found = new JSONArray();
+
         String q = query.toLowerCase(Locale.ROOT);
 
         for (int i = 0; i < records.length(); i++) {
             JSONObject o = records.optJSONObject(i);
+
             if (o == null) continue;
-            String data = o.optString("BILL NUMBER") + " " +
+
+            String data =
+                o.optString("BILL NUMBER") + " " +
                 o.optString("CUSTOMER NAME") + " " +
                 o.optString("MOBILE NUMBER");
-            if (data.toLowerCase(Locale.ROOT).contains(q)) found.put(o);
+
+            if (data.toLowerCase(Locale.ROOT).contains(q)) {
+                found.put(o);
+            }
         }
+
         showArray(found);
     }
 
+    // DISPLAY RECORDS
     private void showArray(JSONArray list) {
         ScrollView scroll = new ScrollView(this);
+
         LinearLayout panel = vertical();
         panel.setPadding(14, 14, 14, 20);
         panel.setBackgroundColor(pale);
+
         scroll.addView(panel);
 
         header(panel, "RECORDS: " + list.length());
 
         for (int i = 0; i < list.length(); i++) {
+
             JSONObject o = list.optJSONObject(i);
             if (o == null) continue;
 
             LinearLayout card = vertical();
+
             card.setPadding(12, 12, 12, 12);
             card.setBackground(shape(white, 14));
-            card.addView(text(o.optString("CUSTOMER NAME"), 18, navy, true));
-            card.addView(text("BILL: " + o.optString("BILL NUMBER"), 14, blue, true));
-            card.addView(text("DATE: " + o.optString("DATE"), 13, navy, false));
-            card.addView(text("MOBILE: " + o.optString("MOBILE NUMBER"), 13, navy, false));
-            card.addView(text("NET AMOUNT: " + o.optString("NET AMOUNT"), 14, navy, true));
+
+            card.addView(text(
+                o.optString("CUSTOMER NAME"),
+                18, navy, true
+            ));
+
+            card.addView(text(
+                "BILL: " + o.optString("BILL NUMBER"),
+                14, blue, true
+            ));
+
+            card.addView(text(
+                "DATE: " + o.optString("DATE"),
+                13, navy, false
+            ));
+
+            card.addView(text(
+                "MOBILE: " + o.optString("MOBILE NUMBER"),
+                13, navy, false
+            ));
+
+            card.addView(text(
+                "NET AMOUNT: " + o.optString("NET AMOUNT"),
+                14, navy, true
+            ));
 
             final JSONObject selected = o;
             final int recordIndex = findRecord(o);
 
             Button edit = button("EDIT");
             Button delete = button("DELETE");
+
             card.addView(edit);
             card.addView(delete);
 
             edit.setOnClickListener(v -> {
                 editing = recordIndex;
                 photos = new String[3];
+
                 JSONArray a = selected.optJSONArray("PHOTOS");
-                if (a != null) for (int x = 0; x < 3 && x < a.length(); x++)
-                    photos[x] = a.optString(x);
+
+                if (a != null) {
+                    for (int x = 0;
+                         x < 3 && x < a.length(); x++) {
+                        photos[x] = a.optString(x);
+                    }
+                }
+
                 showFormScreen(selected);
             });
 
@@ -358,55 +559,110 @@ public class MainActivity extends Activity {
                             saveRecords();
                         }
                         showHome();
-                    }).setNegativeButton("NO", null).show());
+                    })
+                    .setNegativeButton("NO", null)
+                    .show()
+            );
 
-            panel.addView(card);
+            LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, -2);
+
+            lp.setMargins(0, 8, 0, 8);
+
+            panel.addView(card, lp);
         }
 
-        panel.addView(button("BACK"));
+        Button back = button("BACK");
+        panel.addView(back);
+        back.setOnClickListener(v -> showHome());
+
         setContentView(scroll);
     }
 
+    // FIND RECORD INDEX
     private int findRecord(JSONObject obj) {
         for (int i = 0; i < records.length(); i++) {
-            if (records.optJSONObject(i) == obj) return i;
+            if (records.optJSONObject(i) == obj) {
+                return i;
+            }
         }
+
         for (int i = 0; i < records.length(); i++) {
-            if (records.optJSONObject(i) != null &&
-                records.optJSONObject(i).toString().equals(obj.toString())) return i;
+            JSONObject current = records.optJSONObject(i);
+
+            if (current != null &&
+                current.toString().equals(obj.toString())) {
+                return i;
+            }
         }
+
         return -1;
     }
 
+    // CSV EXPORT
     private void exportCSV() {
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        Intent intent = new Intent(
+            Intent.ACTION_CREATE_DOCUMENT
+        );
+
         intent.setType("text/csv");
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
+
+        intent.putExtra(
+            Intent.EXTRA_TITLE,
+            "VIPIN_SERVICE_CRM.csv"
+        );
+
         startActivityForResult(intent, 102);
     }
 
+    // PHOTO AND CSV RESULT
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    protected void onActivityResult(
+        int requestCode, int resultCode, Intent data
+    ) {
+        super.onActivityResult(
+            requestCode, resultCode, data
+        );
+
         if (resultCode != RESULT_OK || data == null) return;
 
         Uri uri = data.getData();
+
         if (requestCode == 101) {
             try {
-                File dir = new File(getFilesDir(), "photos");
+                File dir = new File(
+                    getFilesDir(), "photos"
+                );
+
                 if (!dir.exists()) dir.mkdirs();
 
-                File file = new File(dir, "photo_" + System.currentTimeMillis() + ".jpg");
-                InputStream in = getContentResolver().openInputStream(uri);
-                FileOutputStream out = new FileOutputStream(file);
+                File file = new File(
+                    dir,
+                    "photo_" + System.currentTimeMillis() + ".jpg"
+                );
+
+                InputStream in =
+                    getContentResolver().openInputStream(uri);
+
+                FileOutputStream out =
+                    new FileOutputStream(file);
+
                 byte[] buffer = new byte[8192];
                 int n;
-                while ((n = in.read(buffer)) > 0) out.write(buffer, 0, n);
+
+                while ((n = in.read(buffer)) > 0) {
+                    out.write(buffer, 0, n);
+                }
+
                 in.close();
                 out.close();
-                photos[photoIndex] = file.getAbsolutePath();
+
+                photos[photoIndex] =
+                    file.getAbsolutePath();
+
                 msg("PHOTO SAVED");
+
             } catch (Exception e) {
                 msg("PHOTO ERROR");
             }
@@ -414,33 +670,63 @@ public class MainActivity extends Activity {
 
         if (requestCode == 102) {
             try {
-                OutputStream out = getContentResolver().openOutputStream(uri);
+                OutputStream out =
+                    getContentResolver().openOutputStream(uri);
+
+                if (out == null) {
+                    msg("EXPORT ERROR");
+                    return;
+                }
+
                 StringBuilder csv = new StringBuilder();
-                for (String f : FIELDS) csv.append("\"").append(f).append("\",");
+
+                for (int i = 0; i < FIELDS.length; i++) {
+                    if (i > 0) csv.append(",");
+                    csv.append("\"")
+                       .append(FIELDS[i])
+                       .append("\"");
+                }
+
                 csv.append("\n");
 
                 for (int i = 0; i < records.length(); i++) {
                     JSONObject o = records.getJSONObject(i);
-                    for (String f : FIELDS) {
-                        String value = o.optString(f, "").replace("\"", "\"\"");
-                        csv.append("\"").append(value).append("\",");
+
+                    for (int j = 0; j < FIELDS.length; j++) {
+                        if (j > 0) csv.append(",");
+
+                        String value = o.optString(
+                            FIELDS[j], ""
+                        ).replace("\"", "\"\"");
+
+                        csv.append("\"")
+                           .append(value)
+                           .append("\"");
                     }
+
                     csv.append("\n");
                 }
+
                 out.write(csv.toString().getBytes("UTF-8"));
                 out.close();
+
                 msg("CSV EXPORTED");
+
             } catch (Exception e) {
                 msg("EXPORT ERROR");
             }
         }
     }
 
+    // CHANGE PASSWORD
     private void changePassword() {
         EditText old = new EditText(this);
         old.setHint("OLD PASSWORD");
+        old.setInputType(129);
+
         EditText next = new EditText(this);
         next.setHint("NEW PASSWORD");
+        next.setInputType(129);
 
         LinearLayout box = vertical();
         box.addView(old);
@@ -450,71 +736,131 @@ public class MainActivity extends Activity {
             .setTitle("CHANGE PASSWORD")
             .setView(box)
             .setPositiveButton("SAVE", (d, w) -> {
-                String saved = prefs.getString("password", "Jvipin");
+
+                String saved = prefs.getString(
+                    "password", "Jvipin"
+                );
+
                 if (!old.getText().toString().equals(saved)) {
                     msg("OLD PASSWORD WRONG");
-                } else if (next.getText().toString().trim().isEmpty()) {
+
+                } else if (
+                    next.getText().toString().trim().isEmpty()
+                ) {
                     msg("ENTER NEW PASSWORD");
+
                 } else {
-                    prefs.edit().putString("password",
-                        next.getText().toString()).apply();
+                    prefs.edit().putString(
+                        "password",
+                        next.getText().toString()
+                    ).apply();
+
                     msg("PASSWORD CHANGED");
                 }
-            }).setNegativeButton("CANCEL", null).show();
+            })
+            .setNegativeButton("CANCEL", null)
+            .show();
     }
 
+    // LOAD RECORDS
     private void loadRecords() {
         try {
-            records = new JSONArray(prefs.getString(KEY, "[]"));
+            records = new JSONArray(
+                prefs.getString(KEY, "[]")
+            );
         } catch (Exception e) {
             records = new JSONArray();
         }
     }
 
+    // SAVE RECORDS
     private void saveRecords() {
-        prefs.edit().putString(KEY, records.toString()).apply();
+        prefs.edit()
+            .putString(KEY, records.toString())
+            .apply();
     }
 
+    // VERTICAL LAYOUT
     private LinearLayout vertical() {
         LinearLayout l = new LinearLayout(this);
         l.setOrientation(LinearLayout.VERTICAL);
         return l;
     }
 
+    // HEADER WITH LOGO
     private void header(LinearLayout box, String title) {
-        TextView t = text(title, 23, white, true);
-        t.setPadding(16, 20, 16, 20);
-        t.setBackground(shape(navy, 18));
-        box.addView(t);
+        LinearLayout bar = new LinearLayout(this);
+
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(12, 10, 12, 10);
+        bar.setBackground(shape(navy, 18));
+
+        ImageView logo = logoImage(52);
+
+        bar.addView(logo);
+
+        TextView t = text(title, 19, white, true);
+        t.setPadding(12, 8, 5, 8);
+
+        bar.addView(t, new LinearLayout.LayoutParams(
+            0, -2, 1
+        ));
+
+        LinearLayout.LayoutParams lp =
+            new LinearLayout.LayoutParams(-1, -2);
+
+        lp.setMargins(0, 0, 0, 12);
+
+        box.addView(bar, lp);
     }
 
-    private TextView text(String s, int size, int color, boolean bold) {
+    // TEXT
+    private TextView text(
+        String s, int size, int color, boolean bold
+    ) {
         TextView t = new TextView(this);
+
         t.setText(s);
         t.setTextSize(size);
         t.setTextColor(color);
-        if (bold) t.setTypeface(null, Typeface.BOLD);
+
+        if (bold) {
+            t.setTypeface(null, Typeface.BOLD);
+        }
+
         t.setPadding(5, 7, 5, 7);
+
         return t;
     }
 
+    // BUTTON
     private Button button(String s) {
         Button b = new Button(this);
+
         b.setText(s);
         b.setTextColor(white);
         b.setTextSize(14);
         b.setAllCaps(false);
         b.setBackground(shape(blue, 14));
         b.setPadding(12, 8, 12, 8);
+
         return b;
     }
 
-    private void addHomeButton(String label, Runnable action) {
+    // HOME BUTTON
+    private void addHomeButton(
+        String label, Runnable action
+    ) {
         Button b = button(label);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-            -1, -2);
+
+        LinearLayout.LayoutParams lp =
+            new LinearLayout.LayoutParams(-1, -2);
+
         lp.setMargins(0, 10, 0, 4);
+
         root.addView(b, lp);
+
         b.setOnClickListener(v -> action.run());
     }
 
@@ -522,14 +868,26 @@ public class MainActivity extends Activity {
         box.addView(v);
     }
 
-    private GradientDrawable shape(int color, int radius) {
+    // ROUNDED BACKGROUND
+    private GradientDrawable shape(
+        int color, int radius
+    ) {
         GradientDrawable d = new GradientDrawable();
+
         d.setColor(color);
-        d.setCornerRadius(radius * getResources().getDisplayMetrics().density);
+
+        d.setCornerRadius(
+            radius * getResources()
+                .getDisplayMetrics().density
+        );
+
         return d;
     }
 
+    // MESSAGE
     private void msg(String s) {
-        Toast.makeText(this, s, Toast.LENGTH_SHORT).show();
+        Toast.makeText(
+            this, s, Toast.LENGTH_SHORT
+        ).show();
     }
 }
