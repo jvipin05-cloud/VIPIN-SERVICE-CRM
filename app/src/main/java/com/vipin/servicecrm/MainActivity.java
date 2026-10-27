@@ -107,7 +107,7 @@ private final int paleGold = Color.rgb(255, 239, 190);
     private void showHome() {
     ScrollView scroll = new ScrollView(this);
     root = vertical();
-    root.setPadding(dp(16), dp(16), dp(16), dp(24));
+    root.setPadding(dp(16), dp(32), dp(16), dp(24));
     root.setBackgroundColor(pale);
     scroll.addView(root);
 
@@ -144,16 +144,18 @@ private final int paleGold = Color.rgb(255, 239, 190);
     LinearLayout row1 = horizontal();
     row1.setGravity(Gravity.CENTER);
     row1.addView(makeTotalCard("AMOUNT", lastMonthTotal("AMOUNT"), blue),
-        new LinearLayout.LayoutParams(0, dp(105), 1));
-    row1.addView(makeTotalCard("SPARE AMOUNT", lastMonthTotal("SPARE AMOUNT"), cyan),
+    cardParams());
+row1.addView(makeTotalCard("SPARE AMOUNT", lastMonthTotal("SPARE AMOUNT"), cyan),
+    cardParams());
         new LinearLayout.LayoutParams(0, dp(105), 1));
     root.addView(row1, matchWrap());
 
     LinearLayout row2 = horizontal();
     row2.setGravity(Gravity.CENTER);
     row2.addView(makeTotalCard("WARRANTY AMOUNT", lastMonthTotal("WARRANTY AMOUNT"), gold),
-        new LinearLayout.LayoutParams(0, dp(105), 1));
-    row2.addView(makeTotalCard("NET AMOUNT", lastMonthTotal("NET AMOUNT"), Color.rgb(20, 145, 105)),
+    cardParams());
+row2.addView(makeTotalCard("NET AMOUNT", lastMonthTotal("NET AMOUNT"), Color.rgb(20, 145, 105)),
+    cardParams());
         new LinearLayout.LayoutParams(0, dp(105), 1));
     root.addView(row2, matchWrap());
 
@@ -161,6 +163,12 @@ private final int paleGold = Color.rgb(255, 239, 190);
 }
 
 private LinearLayout makeTotalCard(String name, double value, int color) {
+    private LinearLayout.LayoutParams cardParams() {
+    LinearLayout.LayoutParams p =
+        new LinearLayout.LayoutParams(0, dp(92), 1);
+    p.setMargins(dp(5), dp(5), dp(5), dp(5));
+    return p;
+    }
     LinearLayout card = vertical();
     card.setGravity(Gravity.CENTER);
     card.setPadding(dp(6), dp(10), dp(6), dp(10));
