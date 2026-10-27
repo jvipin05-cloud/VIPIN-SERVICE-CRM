@@ -139,11 +139,54 @@ private void showHome() {
 
     addView(root, text("TOTAL RECORDS: " + records.length(),  
         16, navy, true));  
+    addView(root, text("LAST MONTH TOTAL", 20, navy, true));
+addView(root, text("AMOUNT: ₹" + lastMonthTotal("AMOUNT"), 16, navy, true));
+addView(root, text("SPARE AMOUNT: ₹" + lastMonthTotal("SPARE AMOUNT"), 16, navy, true));
+addView(root, text("WARRANTY AMOUNT: ₹" + lastMonthTotal("WARRANTY AMOUNT"), 16, navy, true));
+addView(root, text("NET AMOUNT: ₹" + lastMonthTotal("NET AMOUNT"), 16, navy, true));
 
     setContentView(scroll);  
 }  
+private double lastMonthTotal(String field) {
+    Calendar cal = Calendar.getInstance();
+    cal.add(Calendar.MONTH, -1);
 
+    int month = cal.get(Calendar.MONTH) + 1;
+    int year = cal.get(Calendar.YEAR);
+    double total = 0;
+
+    for (int i = 0; i < records.length(); i++) {
+        JSONObject obj = records.optJSONObject(i);
+        if (obj == null) continue;
+
+        String date = obj.optString("DATE", "");
+
+        try {
+            Date d = new SimpleDateFormat(
+                "dd-MM-yyyy", Locale.getDefault()
+            ).parse(date);
+
+            Calendar rc = Calendar.getInstance();
+            rc.setTime(d);
+
+            if (rc.get(Calendar.MONTH) + 1 == month &&
+                rc.get(Calendar.YEAR) == year) {
+
+                String amount = obj.optString(field, "0")
+                    .replace(",", "")
+                    .replace("₹", "").trim();
+
+                total += Double.parseDouble(
+                    amount.isEmpty() ? "0" : amount
+                );
+            }
+        } catch (Exception e) {
+        }
+    }
+    return total;
+}
 private void showForm() {  
+    
     editing = -1;  
     photos = new String[3];  
     showFormScreen(null);  
