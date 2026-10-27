@@ -1,11 +1,12 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
         android:allowBackup="true"
         android:label="VIPIN SERVICE CRM"
-        android:icon="@drawable/vipin_service_crm_final_icon"
-        android:roundIcon="@drawable/ic_launcher"
+        android:icon="@drawable/vipin_service_crm_icon_512"
+        android:roundIcon="@drawable/vipin_service_crm_icon_512"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
