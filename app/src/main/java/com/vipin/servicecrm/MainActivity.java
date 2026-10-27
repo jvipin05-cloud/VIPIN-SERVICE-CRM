@@ -264,7 +264,8 @@ public class MainActivity extends Activity {
                 inputs[i] = edit(FIELDS[i]);
                 if (i == 0) {
                     inputs[i].setFocusable(false);
-                    inputs[i].setOnClickListener(v -> pickDate(inputs[i]));
+                    final EditText dateInput = inputs[i];
+dateInput.setOnClickListener(v -> pickDate(dateInput));
                 }
                 if (i == 9 || i == 10 || i == 11 || i == 12 || i == 3 || i == 4)
                     inputs[i].setInputType(8194 | 4096);
