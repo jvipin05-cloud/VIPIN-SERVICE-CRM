@@ -105,36 +105,82 @@ private final int paleGold = Color.rgb(255, 239, 190);
     }
 
     private void showHome() {
-        ScrollView scroll = new ScrollView(this);
-        root = vertical();
-        root.setPadding(dp(16), dp(16), dp(16), dp(24));
-        root.setBackgroundColor(pale);
-        scroll.addView(root);
+    ScrollView scroll = new ScrollView(this);
+    root = vertical();
+    root.setPadding(dp(16), dp(16), dp(16), dp(24));
+    root.setBackgroundColor(pale);
+    scroll.addView(root);
 
-        LinearLayout hero = vertical();
-        hero.setPadding(dp(18), dp(18), dp(18), dp(18));
-        hero.setBackground(gradient(navy, blue, 22));
-        TextView title = label("VIPIN SERVICE CRM", 23, white, true);
-        hero.addView(title);
-        hero.addView(label("OFFLINE SERVICE RECORD MANAGER", 11, white, false));
-        hero.addView(label("TOTAL RECORDS  •  " + records.length(), 14, white, true));
-        root.addView(hero, matchWrap());
+    LinearLayout hero = vertical();
+    hero.setGravity(Gravity.CENTER);
+    hero.setPadding(dp(18), dp(24), dp(18), dp(24));
+    hero.setBackground(gradient(navy, blue, 24));
 
-        addHomeButton("＋  ADD NEW RECORD", this::showForm, blue);
-        addHomeButton("⌕  SEARCH RECORD", this::searchRecords, cyan);
-        addHomeButton("▦  MONTH / YEAR RECORDS", this::showFolder, navy);
-        addHomeButton("⇩  EXPORT EXCEL / CSV", this::exportCSV, blue);
-        addHomeButton("⚙  CHANGE PASSWORD", this::changePassword, navy);
+    TextView title = label("VIPIN SERVICE CRM", 24, white, true);
+    title.setGravity(Gravity.CENTER);
+    hero.addView(title);
 
-        TextView totalsTitle = label("LAST MONTH TOTAL", 18, navy, true);
-        totalsTitle.setPadding(dp(3), dp(18), dp(3), dp(8));
-        root.addView(totalsTitle);
-        addTotalCard("AMOUNT", lastMonthTotal("AMOUNT"));
-        addTotalCard("SPARE AMOUNT", lastMonthTotal("SPARE AMOUNT"));
-        addTotalCard("WARRANTY AMOUNT", lastMonthTotal("WARRANTY AMOUNT"));
-        addTotalCard("NET AMOUNT", lastMonthTotal("NET AMOUNT"));
-        setContentView(scroll);
-    }
+    TextView sub = label("OFFLINE SERVICE RECORD MANAGER", 11, white, true);
+    sub.setGravity(Gravity.CENTER);
+    hero.addView(sub);
+
+    TextView count = label("TOTAL RECORDS  •  " + records.length(), 14, white, true);
+    count.setGravity(Gravity.CENTER);
+    hero.addView(count);
+
+    root.addView(hero, matchWrap());
+
+    addHomeButton("＋  ADD NEW RECORD", this::showForm, blue);
+    addHomeButton("⌕  SEARCH RECORD", this::searchRecords, cyan);
+    addHomeButton("▦  MONTH / YEAR RECORDS", this::showFolder, navy);
+    addHomeButton("⇩  EXPORT EXCEL / CSV", this::exportCSV, Color.rgb(20, 145, 105));
+    addHomeButton("⚙  CHANGE PASSWORD", this::changePassword, gold);
+
+    TextView totalsTitle = label("LAST MONTH TOTAL", 19, navy, true);
+    totalsTitle.setGravity(Gravity.CENTER);
+    totalsTitle.setPadding(dp(3), dp(22), dp(3), dp(12));
+    root.addView(totalsTitle);
+
+    LinearLayout row1 = horizontal();
+    row1.setGravity(Gravity.CENTER);
+    row1.addView(makeTotalCard("AMOUNT", lastMonthTotal("AMOUNT"), blue),
+        new LinearLayout.LayoutParams(0, dp(105), 1));
+    row1.addView(makeTotalCard("SPARE AMOUNT", lastMonthTotal("SPARE AMOUNT"), cyan),
+        new LinearLayout.LayoutParams(0, dp(105), 1));
+    root.addView(row1, matchWrap());
+
+    LinearLayout row2 = horizontal();
+    row2.setGravity(Gravity.CENTER);
+    row2.addView(makeTotalCard("WARRANTY AMOUNT", lastMonthTotal("WARRANTY AMOUNT"), gold),
+        new LinearLayout.LayoutParams(0, dp(105), 1));
+    row2.addView(makeTotalCard("NET AMOUNT", lastMonthTotal("NET AMOUNT"), Color.rgb(20, 145, 105)),
+        new LinearLayout.LayoutParams(0, dp(105), 1));
+    root.addView(row2, matchWrap());
+
+    setContentView(scroll);
+}
+
+private LinearLayout makeTotalCard(String name, double value, int color) {
+    LinearLayout card = vertical();
+    card.setGravity(Gravity.CENTER);
+    card.setPadding(dp(6), dp(10), dp(6), dp(10));
+    card.setBackground(roundBox(color, 17));
+
+    TextView heading = label(name, 11, white, true);
+    heading.setGravity(Gravity.CENTER);
+    card.addView(heading);
+
+    TextView amount = label("₹ " + money(value), 16, white, true);
+    amount.setGravity(Gravity.CENTER);
+    card.addView(amount);
+
+    LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+        -1, -1);
+    p.setMargins(dp(4), dp(4), dp(4), dp(4));
+    card.setLayoutParams(p);
+
+    return card;
+}
 
     private void addTotalCard(String name, double value) {
         LinearLayout card = horizontal();
