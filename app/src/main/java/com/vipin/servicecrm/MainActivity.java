@@ -175,7 +175,9 @@ private void showFormScreen(JSONObject old) {
             inputs[i].setSingleLine(i != 7);  
             if (i == 0) {  
                 inputs[i].setFocusable(false);  
-                inputs[i].setOnClickListener(v -> pickDate(inputs[i]));  
+                  final EditText dateField = inputs[i];
+
+dateField.setOnClickListener(v -> pickDate(dateField));
                 inputs[i].setText(new SimpleDateFormat(  
                     "dd-MM-yyyy", Locale.getDefault()  
                 ).format(new Date()));  
