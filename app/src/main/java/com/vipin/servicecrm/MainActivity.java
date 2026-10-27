@@ -32,7 +32,9 @@ public class MainActivity extends Activity {
     private final int pale = Color.rgb(242, 246, 252);
     private final int white = Color.WHITE;
     private final int ink = Color.rgb(35, 48, 69);
-
+private final int gold = Color.rgb(190, 125, 20);
+private final int lightGold = Color.rgb(239, 181, 66);
+private final int paleGold = Color.rgb(255, 239, 190);
     private SharedPreferences prefs;
     private JSONArray records = new JSONArray();
     private EditText[] inputs = new EditText[FIELDS.length];
@@ -178,7 +180,7 @@ public class MainActivity extends Activity {
         addPageHeader(panel, editing < 0 ? "ADD NEW RECORD" : "EDIT RECORD");
 
         for (int i = 0; i < FIELDS.length; i++) {
-            TextView cap = label(FIELDS[i], 12, navy, true);
+            TextView cap = label(FIELDS[i], 13, gold, true);
             cap.setPadding(dp(3), dp(10), dp(3), dp(4));
             panel.addView(cap);
             if (i == 13) {
@@ -485,7 +487,8 @@ public class MainActivity extends Activity {
     }
     private EditText field(String hint) {
         EditText e = new EditText(this); e.setHint(hint); e.setTextSize(15);
-        e.setTextColor(ink); e.setHintTextColor(Color.rgb(135, 145, 160));
+    e.setTextColor(navy);
+e.setHintTextColor(Color.rgb(190, 145, 65));
         e.setPadding(dp(13), dp(10), dp(13), dp(10));
         e.setBackground(roundBox(white, 12)); return e;
     }
@@ -506,9 +509,14 @@ public class MainActivity extends Activity {
         root.addView(b, p); b.setOnClickListener(v -> action.run());
     }
     private void addPageHeader(LinearLayout parent, String title) {
-        TextView t = label(title, 20, white, true); t.setPadding(dp(15), dp(17), dp(15), dp(17));
-        t.setBackground(gradient(navy, blue, 18)); parent.addView(t, matchWrap());
-    }
+    TextView t = label(title, 21, navy, true);
+    t.setGravity(Gravity.CENTER);
+    t.setPadding(dp(15), dp(17), dp(15), dp(17));
+    t.setBackground(gradient(paleGold, lightGold, 18));
+    LinearLayout.LayoutParams hp = matchWrap();
+    hp.bottomMargin = dp(10);
+    parent.addView(t, hp);
+}
     private GradientDrawable roundBox(int color, int radius) {
         GradientDrawable d = new GradientDrawable(); d.setColor(color);
         d.setCornerRadius(dp(radius)); return d;
