@@ -54,30 +54,43 @@ public void onCreate(Bundle b) {
     showSplash();  
 }  
 
-private void showSplash() {  
-    LinearLayout box = vertical();  
-    box.setGravity(Gravity.CENTER);  
-    box.setBackgroundColor(navy);  
 
-    TextView logo = text("VIPIN", 42, white, true);  
-    TextView sub = text("SERVICE CRM", 24, white, true);  
-    TextView line = text("SERVICE • RECORD • MANAGEMENT", 12, white, false);  
+private void showSplash() {
+    LinearLayout box = vertical();
+    box.setGravity(Gravity.CENTER);
+    box.setPadding(25, 25, 25, 25);
+    box.setBackgroundColor(navy);
 
-    box.addView(logo);  
-    box.addView(sub);  
-    box.addView(line);  
-    setContentView(box);  
+    ImageView logo = new ImageView(this);
+    logo.setImageResource(R.drawable.vipin_logo);
+    logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
 
-    ScaleAnimation anim = new ScaleAnimation(  
-        0.4f, 1f, 0.4f, 1f,  
-        Animation.RELATIVE_TO_SELF, 0.5f,  
-        Animation.RELATIVE_TO_SELF, 0.5f  
-    );  
-    anim.setDuration(900);  
-    logo.startAnimation(anim);  
+    LinearLayout.LayoutParams logoParams =
+        new LinearLayout.LayoutParams(220, 220);
+    logoParams.bottomMargin = 20;
+    box.addView(logo, logoParams);
 
-    new Handler().postDelayed(() -> showLogin(), 1300);  
-}  
+    TextView sub = text("VIPIN SERVICE CRM", 25, white, true);
+    box.addView(sub);
+
+    TextView line = text(
+        "SERVICE • RECORD • MANAGEMENT", 12, white, false);
+    box.addView(line);
+
+    setContentView(box);
+
+    ScaleAnimation anim = new ScaleAnimation(
+        0.4f, 1f, 0.4f, 1f,
+        Animation.RELATIVE_TO_SELF, 0.5f,
+        Animation.RELATIVE_TO_SELF, 0.5f
+    );
+
+    anim.setDuration(900);
+    logo.startAnimation(anim);
+
+    new Handler().postDelayed(() -> showLogin(), 1300);
+}
+
 
 private void showLogin() {  
     LinearLayout box = vertical();  
