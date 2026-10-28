@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.content.*;
 import android.net.Uri;
 import android.graphics.Color;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.pdf.PdfDocument;
@@ -15,6 +16,7 @@ import android.text.*;
 import org.json.*;
 import java.io.*;
 import java.util.*;
+
 public class MainActivity extends Activity {
 
     private static final String PREF = "vipin_service_crm";
@@ -36,7 +38,8 @@ public class MainActivity extends Activity {
         "AMC", "COLLECTION", "AMOUNT", "SPARE AMOUNT",
         "WARRANTY AMOUNT", "NET AMOUNT"
     };
-private final int navy = Color.rgb(31, 48, 79);
+
+    private final int navy = Color.rgb(31, 48, 79);
     private final int pale = Color.rgb(235, 244, 255);
     private final int ink = Color.rgb(39, 49, 67);
     private final int gold = Color.rgb(246, 218, 153);
@@ -98,7 +101,8 @@ private final int navy = Color.rgb(31, 48, 79);
         l.setGravity(Gravity.CENTER_VERTICAL);
         return l;
     }
-private TextView text(String value, int size, int color, boolean bold) {
+
+    private TextView text(String value, int size, int color, boolean bold) {
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
@@ -168,7 +172,8 @@ private TextView text(String value, int size, int color, boolean bold) {
         root.addView(header, hp);
         animateIn(header);
     }
-private EditText edit(String hint) {
+
+    private EditText edit(String hint) {
         EditText e = new EditText(this);
         e.setSingleLine(true);
         e.setTextSize(15);
@@ -180,7 +185,6 @@ private EditText edit(String hint) {
         e.setSelectAllOnFocus(false);
         return e;
     }
-
     private void addButton(LinearLayout parent, String label, int color, Runnable action) {
         Button b = new Button(this);
         b.setText(label);
@@ -237,7 +241,8 @@ private EditText edit(String hint) {
         note.setGravity(Gravity.CENTER);
         root.addView(note);
     }
-private void changePassword() {
+
+    private void changePassword() {
         LinearLayout box = vertical();
         box.setPadding(dp(8), dp(8), dp(8), dp(8));
         EditText oldP = edit("CURRENT PASSWORD");
@@ -313,7 +318,7 @@ private void changePassword() {
         homeButton("LOG OUT", "↪", Color.rgb(90,100,120), Color.rgb(115,125,145), this::showLogin);
         addDashboardTotals();
     }
-    // TOTAL CALCULATION - one common function for dashboard, records and reports
+// TOTAL CALCULATION - one common function for dashboard, records and reports
     private double[] calculateTotals(String month, String year) {
         double[] totals = new double[MONEY_FIELDS.length];
         for (int i = 0; i < records.length(); i++) {
@@ -466,7 +471,8 @@ private void changePassword() {
             if (hasFocus) scrollToInput(field);
         });
 
-        field.setOnClickListener(v -> scrollToInput(field));
+        // DATE already owns its click listener to open the calendar. Do not replace it.
+        if (index != 0) field.setOnClickListener(v -> scrollToInput(field));
         field.setOnEditorActionListener((v, action, event) -> {
             boolean enterPressed = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
                 && event.getAction() == KeyEvent.ACTION_DOWN;
@@ -540,9 +546,27 @@ private void changePassword() {
 
     private void pickDate(EditText target) {
         Calendar c = Calendar.getInstance();
+        String existing = normalizeDate(target.getText().toString());
+        if (existing.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            try {
+                String[] parts = existing.split("-");
+                c.set(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]) - 1,
+                    Integer.parseInt(parts[2]));
+            } catch (Exception ignored) { }
+        }
         new DatePickerDialog(this, (view, year, month, day) ->
-            target.setText(String.format(Locale.US, "%04d-%02d-%02d", year, month + 1, day)),
+            target.setText(String.format(Locale.US, "%02d-%02d-%04d", day, month + 1, year)),
             c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show();
+    }
+
+    // Store dates in ISO format for reliable month/year calculations, but show DD-MM-YYYY.
+    private String displayDate(String value) {
+        String iso = normalizeDate(value);
+        if (iso.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            String[] p = iso.split("-");
+            return p[2] + "-" + p[1] + "-" + p[0];
+        }
+        return value == null ? "" : value;
     }
 
     private void fillEditRecord() {
@@ -553,7 +577,10 @@ private void changePassword() {
                 String value = r.optString(FIELDS[i], "CASH");
                 for (int j = 0; j < PAYMENTS.length; j++)
                     if (PAYMENTS[j].equals(value)) paymentSpinner.setSelection(j);
-            } else if (inputs[i] != null) inputs[i].setText(r.optString(FIELDS[i]));
+            } else if (inputs[i] != null) {
+                String value = r.optString(FIELDS[i]);
+                inputs[i].setText(i == 0 ? displayDate(value) : value);
+            }
         }
         for (int i = 0; i < 3; i++) photoUris[i] = r.optString("PHOTO" + (i + 1), "");
         pdfUri = r.optString("PDF", "");
@@ -608,8 +635,8 @@ private void changePassword() {
         if (requestCode == REQ_PHOTO) photoUris[photoSlot] = uri.toString();
         else if (requestCode == REQ_PDF) pdfUri = uri.toString();
         if (statusText != null) statusText.setText(attachmentStatus());
-    }
-
+                                     }
+    
     private void saveRecord() {
         JSONObject r = new JSONObject();
         try {
@@ -668,7 +695,8 @@ private void changePassword() {
         filters.addView(yearSpinner, new LinearLayout.LayoutParams(0, dp(48), 1));
         parent.addView(filters);
     }
-private void showRecords() {
+
+    private void showRecords() {
         currentPage = "RECORDS";
         pageBase("SERVICE RECORDS");
         searchBox = edit("SEARCH: NAME / MOBILE / BILL / PRODUCT");
@@ -727,7 +755,7 @@ private void showRecords() {
             LinearLayout card = vertical();
             card.setPadding(dp(12), dp(12), dp(12), dp(12));
             card.setBackground(shape(Color.WHITE, 14, Color.rgb(218,224,233)));
-            TextView title = text(r.optString("CUSTOMER NAME") + " | " + r.optString("DATE"), 15, navy, true);
+            TextView title = text(r.optString("CUSTOMER NAME") + " | " + displayDate(r.optString("DATE")), 15, navy, true);
             card.addView(title);
             for (String field : FIELDS) {
                 if ("DATE".equals(field) || "CUSTOMER NAME".equals(field)) continue;
@@ -943,6 +971,7 @@ private void showRecords() {
                 lines.add("------------------------------------------------------------");
                 for (String field : FIELDS) {
                     String value = r.optString(field, "");
+                    if ("DATE".equals(field)) value = displayDate(value);
                     lines.add(field + ": " + (value.isEmpty() ? "-" : value));
                 }
                 lines.add("");
@@ -1042,7 +1071,6 @@ private void showRecords() {
             document.close();
         }
     }
-
     // CSV EXPORT
     private void exportCSV() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -1067,7 +1095,9 @@ private void showRecords() {
                 JSONObject r = records.optJSONObject(i);
                 for (int j = 0; j < FIELDS.length; j++) {
                     if (j > 0) w.write(",");
-                    w.write(csv(r == null ? "" : r.optString(FIELDS[j])));
+                    String value = r == null ? "" : r.optString(FIELDS[j]);
+                    if (j == 0) value = displayDate(value);
+                    w.write(csv(value));
                 }
                 w.write("\n");
             }
@@ -1082,7 +1112,8 @@ private void showRecords() {
         if (s == null) s = "";
         return "\"" + s.replace("\"", "\"\"") + "\"";
     }
-// NAVIGATION
+
+    // NAVIGATION
     private void goBack() {
         if ("ENTRY".equals(currentPage)) {
             if (entryFromRecords) {
