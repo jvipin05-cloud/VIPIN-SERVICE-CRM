@@ -474,33 +474,38 @@ public class MainActivity extends Activity {
 
     // KEYBOARD AUTO-SCROLL: move the complete label + input group into view.
     private void scrollToInput(EditText field) {
-        if (pageScroll == null || field == null) return;
+    if (pageScroll == null || field == null) return;
 
-        final int index = findInputIndex(field);
-        final View target = (index >= 0 && fieldGroups != null
-            && fieldGroups[index] != null) ? fieldGroups[index] : field;
+    pageScroll.postDelayed(() -> {
+        if (pageScroll == null) return;
 
-        pageScroll.postDelayed(() -> {
-            if (pageScroll == null || target.getWindowToken() == null) return;
+        android.graphics.Rect rect =
+            new android.graphics.Rect();
 
-            try {
-                int[] targetPos = new int[2];
-                int[] scrollPos = new int[2];
-                target.getLocationOnScreen(targetPos);
-                pageScroll.getLocationOnScreen(scrollPos);
+        field.getDrawingRect(rect);
 
-                // Keep the field title below the status/header area.
-                int topLimit = scrollPos[1] + dp(18);
-                int bottomLimit = scrollPos[1] + pageScroll.getHeight() - dp(24);
-                int targetBottom = targetPos[1] + target.getHeight();
+        pageScroll.offsetDescendantRectToMyCoords(
+            field, rect
+        );
 
-                if (targetPos[1] < topLimit) {
-                    pageScroll.smoothScrollBy(0, targetPos[1] - topLimit);
-                } else if (targetBottom > bottomLimit) {
-                    pageScroll.smoothScrollBy(0, targetBottom - bottomLimit);
-                }
-            } catch (Exception ignored) { }
-        }, 350);
+        int visibleHeight = pageScroll.getHeight();
+        int currentY = pageScroll.getScrollY();
+
+        int bottomLimit = currentY + visibleHeight - dp(25);
+
+        if (rect.bottom > bottomLimit) {
+            pageScroll.smoothScrollTo(
+                0,
+                rect.bottom - visibleHeight + dp(35)
+            );
+        } else if (rect.top < currentY + dp(20)) {
+            pageScroll.smoothScrollTo(
+                0,
+                Math.max(0, rect.top - dp(25))
+            );
+        }
+
+    }, 300);
     }
 
     private int findInputIndex(EditText field) {
