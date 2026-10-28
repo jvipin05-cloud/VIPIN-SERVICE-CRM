@@ -1045,15 +1045,21 @@ public class MainActivity extends Activity {
                     paint.setTextSize(9.5f);
                     y = top;
                 }
+Typeface oldTypeface = paint.getTypeface();
+float oldTextSize = paint.getTextSize();
 
-                if (heading) {
-                    paint.setTypeface(Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(line.equals("VIPIN SERVICE CRM") ? 15 : 11);
-                    paint.setTypeface(Typeface.DEFAULT);
-                    paint.setTextSize(9.5f);
-                }
-                page.getCanvas().drawText(line, left, y, paint);
-                y += heading ? 21 : 15;
+if (heading) {
+    paint.setTypeface(Typeface.DEFAULT_BOLD);
+    paint.setTextSize(line.equals("VIPIN SERVICE CRM") ? 15f : 11f);
+}
+
+page.getCanvas().drawText(line, left, y, paint);
+
+paint.setTypeface(oldTypeface);
+paint.setTextSize(oldTextSize);
+
+y += heading ? 21 : 15;
+
             }
 
             if (page != null) document.finishPage(page);
