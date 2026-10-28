@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.pdf.PdfDocument;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.*;
@@ -14,13 +15,15 @@ import android.text.*;
 import org.json.*;
 import java.io.*;
 import java.util.*;
-
 public class MainActivity extends Activity {
 
     private static final String PREF = "vipin_service_crm";
     private static final String RECORDS = "records";
     private static final String PASSWORD = "password";
     private static final int REQ_PHOTO = 701, REQ_EXPORT = 702, REQ_PDF = 703;
+    private static final int REQ_REPORT_PDF = 704;
+    private String selectedReportMonth = "ALL MONTHS";
+    private String selectedReportYear = "ALL YEARS";
 
     private final String[] FIELDS = {
         "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
@@ -33,8 +36,7 @@ public class MainActivity extends Activity {
         "AMC", "COLLECTION", "AMOUNT", "SPARE AMOUNT",
         "WARRANTY AMOUNT", "NET AMOUNT"
     };
-
-    private final int navy = Color.rgb(31, 48, 79);
+private final int navy = Color.rgb(31, 48, 79);
     private final int pale = Color.rgb(235, 244, 255);
     private final int ink = Color.rgb(39, 49, 67);
     private final int gold = Color.rgb(246, 218, 153);
@@ -57,7 +59,10 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.rgb(30, 55, 125));
         getWindow().setNavigationBarColor(Color.rgb(45, 58, 86));
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        // Resize the activity when the keyboard opens so the focused field stays visible.
+        getWindow().setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE |
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         loadRecords();
         showLogin();
     }
@@ -93,8 +98,7 @@ public class MainActivity extends Activity {
         l.setGravity(Gravity.CENTER_VERTICAL);
         return l;
     }
-
-    private TextView text(String value, int size, int color, boolean bold) {
+private TextView text(String value, int size, int color, boolean bold) {
         TextView t = new TextView(this);
         t.setText(value);
         t.setTextSize(size);
@@ -147,6 +151,9 @@ public class MainActivity extends Activity {
         pageScroll.setFillViewport(true);
         pageScroll.setClipToPadding(false);
         pageScroll.setVerticalScrollBarEnabled(true);
+        pageScroll.setFocusable(true);
+        pageScroll.setFocusableInTouchMode(true);
+        pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
         pageScroll.setPadding(0, dp(6), 0, dp(48));
         pageScroll.addView(root);
         setContentView(pageScroll);
@@ -161,8 +168,7 @@ public class MainActivity extends Activity {
         root.addView(header, hp);
         animateIn(header);
     }
-
-    private EditText edit(String hint) {
+private EditText edit(String hint) {
         EditText e = new EditText(this);
         e.setSingleLine(true);
         e.setTextSize(15);
@@ -231,8 +237,7 @@ public class MainActivity extends Activity {
         note.setGravity(Gravity.CENTER);
         root.addView(note);
     }
-
-    private void changePassword() {
+private void changePassword() {
         LinearLayout box = vertical();
         box.setPadding(dp(8), dp(8), dp(8), dp(8));
         EditText oldP = edit("CURRENT PASSWORD");
@@ -308,7 +313,6 @@ public class MainActivity extends Activity {
         homeButton("LOG OUT", "↪", Color.rgb(90,100,120), Color.rgb(115,125,145), this::showLogin);
         addDashboardTotals();
     }
-
     // TOTAL CALCULATION - one common function for dashboard, records and reports
     private double[] calculateTotals(String month, String year) {
         double[] totals = new double[MONEY_FIELDS.length];
@@ -343,7 +347,8 @@ public class MainActivity extends Activity {
     private double number(String s) {
         try {
             if (s == null) return 0;
-            String cleaned = s.replace(",", "").replace("₹", "").trim();
+            String cleaned = s.replace(",", "").replace("₹", "")
+                .replace("Rs.", "").replace("RS.", "").trim();
             if (cleaned.isEmpty()) return 0;
             return Double.parseDouble(cleaned);
         } catch (Exception e) { return 0; }
@@ -436,6 +441,11 @@ public class MainActivity extends Activity {
                 }
                 if (i != 0) inputs[i].setImeOptions(i == 14 ?
                     EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT);
+                // Automatically convert all typed alphabetic text to CAPITAL.
+                // Numeric fields remain numeric; DATE is selected from the date picker.
+                if (i != 0) {
+                    inputs[i].setFilters(new InputFilter[]{new InputFilter.AllCaps()});
+                }
                 group.addView(inputs[i]);
                 animateIn(inputs[i]);
                 setupKeyboard(inputs[i], i);
@@ -455,16 +465,29 @@ public class MainActivity extends Activity {
         field.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) scrollToInput(field);
         });
+
+        field.setOnClickListener(v -> scrollToInput(field));
         field.setOnEditorActionListener((v, action, event) -> {
-            if (action == EditorInfo.IME_ACTION_NEXT || action == EditorInfo.IME_ACTION_DONE) {
+            boolean enterPressed = event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                && event.getAction() == KeyEvent.ACTION_DOWN;
+            if (action == EditorInfo.IME_ACTION_NEXT || action == EditorInfo.IME_ACTION_DONE
+                    || enterPressed) {
                 int next = index + 1;
                 while (next < FIELDS.length && (next == 13 || next == 0)) next++;
                 if (next < FIELDS.length && inputs[next] != null) {
-                    inputs[next].requestFocus();
-                    scrollToInput(inputs[next]);
+                    EditText nextField = inputs[next];
+                    nextField.requestFocus();
+                    nextField.postDelayed(() -> {
+                        InputMethodManager imm = (InputMethodManager)
+                            getSystemService(INPUT_METHOD_SERVICE);
+                        if (imm != null) imm.showSoftInput(nextField, InputMethodManager.SHOW_IMPLICIT);
+                        scrollToInput(nextField);
+                    }, 120);
                 } else {
-                    InputMethodManager imm = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+                    InputMethodManager imm = (InputMethodManager)
+                        getSystemService(INPUT_METHOD_SERVICE);
                     if (imm != null) imm.hideSoftInputFromWindow(field.getWindowToken(), 0);
+                    field.clearFocus();
                 }
                 return true;
             }
@@ -472,40 +495,39 @@ public class MainActivity extends Activity {
         });
     }
 
-    // KEYBOARD AUTO-SCROLL: move the complete label + input group into view.
+    // Keep the active field above the actual visible keyboard area, even on phones
+    // where ADJUST_RESIZE does not immediately update the ScrollView height.
     private void scrollToInput(EditText field) {
-    if (pageScroll == null || field == null) return;
+        if (pageScroll == null || field == null) return;
+        final int index = findInputIndex(field);
+        final View target = (index >= 0 && fieldGroups != null
+            && fieldGroups[index] != null) ? fieldGroups[index] : field;
 
-    pageScroll.postDelayed(() -> {
-        if (pageScroll == null) return;
+        Runnable moveIntoView = () -> {
+            if (pageScroll == null || target.getWindowToken() == null) return;
+            try {
+                Rect visible = new Rect();
+                getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
+                int[] targetPos = new int[2];
+                target.getLocationOnScreen(targetPos);
+                int targetTop = targetPos[1];
+                int targetBottom = targetTop + target.getHeight();
+                int topLimit = visible.top + dp(12);
+                int bottomLimit = visible.bottom - dp(20);
 
-        android.graphics.Rect rect =
-            new android.graphics.Rect();
+                if (targetBottom > bottomLimit) {
+                    pageScroll.smoothScrollBy(0, targetBottom - bottomLimit + dp(16));
+                } else if (targetTop < topLimit) {
+                    pageScroll.smoothScrollBy(0, targetTop - topLimit - dp(12));
+                }
+                // Android also gets an explicit request to reveal the focused editor.
+                field.requestRectangleOnScreen(new Rect(0, 0, field.getWidth(), field.getHeight()), true);
+            } catch (Exception ignored) { }
+        };
 
-        field.getDrawingRect(rect);
-
-        pageScroll.offsetDescendantRectToMyCoords(
-            field, rect
-        );
-
-        int visibleHeight = pageScroll.getHeight();
-        int currentY = pageScroll.getScrollY();
-
-        int bottomLimit = currentY + visibleHeight - dp(25);
-
-        if (rect.bottom > bottomLimit) {
-            pageScroll.smoothScrollTo(
-                0,
-                rect.bottom - visibleHeight + dp(35)
-            );
-        } else if (rect.top < currentY + dp(20)) {
-            pageScroll.smoothScrollTo(
-                0,
-                Math.max(0, rect.top - dp(25))
-            );
-        }
-
-    }, 300);
+        pageScroll.post(moveIntoView);
+        pageScroll.postDelayed(moveIntoView, 250);
+        pageScroll.postDelayed(moveIntoView, 600);
     }
 
     private int findInputIndex(EditText field) {
@@ -579,6 +601,7 @@ public class MainActivity extends Activity {
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
         if (requestCode == REQ_EXPORT) { writeCSV(uri); return; }
+        if (requestCode == REQ_REPORT_PDF) { writeMonthlyPDF(uri); return; }
         try {
             getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
         } catch (Exception ignored) { }
@@ -591,9 +614,13 @@ public class MainActivity extends Activity {
         JSONObject r = new JSONObject();
         try {
             for (int i = 0; i < FIELDS.length; i++) {
-                if ("PAYMENT MODE".equals(FIELDS[i]))
-                    r.put(FIELDS[i], paymentSpinner.getSelectedItem().toString());
-                else r.put(FIELDS[i], inputs[i].getText().toString().trim());
+                if ("PAYMENT MODE".equals(FIELDS[i])) {
+                    r.put(FIELDS[i], paymentSpinner.getSelectedItem().toString().toUpperCase(Locale.ROOT));
+                } else {
+                    String value = inputs[i].getText().toString().trim();
+                    if (i != 0) value = value.toUpperCase(Locale.ROOT);
+                    r.put(FIELDS[i], value);
+                }
             }
             for (int i = 0; i < 3; i++) r.put("PHOTO" + (i + 1), photoUris[i] == null ? "" : photoUris[i]);
             r.put("PDF", pdfUri == null ? "" : pdfUri);
@@ -641,8 +668,7 @@ public class MainActivity extends Activity {
         filters.addView(yearSpinner, new LinearLayout.LayoutParams(0, dp(48), 1));
         parent.addView(filters);
     }
-
-    private void showRecords() {
+private void showRecords() {
         currentPage = "RECORDS";
         pageBase("SERVICE RECORDS");
         searchBox = edit("SEARCH: NAME / MOBILE / BILL / PRODUCT");
@@ -798,6 +824,8 @@ public class MainActivity extends Activity {
             reportArea.removeAllViews();
             String m = monthSpinner.getSelectedItem().toString();
             String y = yearSpinner.getSelectedItem().toString();
+            selectedReportMonth = m;
+            selectedReportYear = y;
             String month = "ALL MONTHS".equals(m) ? "ALL" : m;
             String year = "ALL YEARS".equals(y) ? "ALL" : y;
             double[] sums = calculateTotals(month, year);
@@ -818,6 +846,7 @@ public class MainActivity extends Activity {
         };
         monthSpinner.setOnItemSelectedListener(new SimpleSelect(update));
         yearSpinner.setOnItemSelectedListener(new SimpleSelect(update));
+        addButton(root, "DOWNLOAD MONTHLY REPORT PDF", Color.rgb(190, 35, 75), this::exportMonthlyPDF);
         addButton(root, "BACK TO HOME", gold, this::showHome);
         update.run();
     }
@@ -873,6 +902,147 @@ public class MainActivity extends Activity {
         } catch (Exception e) { toast("PDF देखने के लिए PDF Viewer इंस्टॉल करें"); }
     }
 
+    // MONTHLY / YEARLY REPORT PDF EXPORT (OFFLINE)
+    private void exportMonthlyPDF() {
+        if (monthSpinner != null && monthSpinner.getSelectedItem() != null)
+            selectedReportMonth = monthSpinner.getSelectedItem().toString();
+        if (yearSpinner != null && yearSpinner.getSelectedItem() != null)
+            selectedReportYear = yearSpinner.getSelectedItem().toString();
+
+        String fileName = "VIPIN_SERVICE_REPORT_" +
+            selectedReportYear.replace(" ", "_") + "_" +
+            selectedReportMonth.replace(" ", "_") + ".pdf";
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        intent.putExtra(Intent.EXTRA_TITLE, fileName);
+        startActivityForResult(intent, REQ_REPORT_PDF);
+    }
+
+    private void writeMonthlyPDF(Uri uri) {
+        PdfDocument document = new PdfDocument();
+        OutputStream output = null;
+        PdfDocument.Page page = null;
+        try {
+            ArrayList<String> lines = new ArrayList<>();
+            lines.add("VIPIN SERVICE CRM");
+            lines.add("MONTHLY / YEARLY SERVICE REPORT");
+            lines.add("PERIOD: " + selectedReportMonth + " / " + selectedReportYear);
+            lines.add("============================================================");
+            lines.add("");
+
+            int count = 0;
+            for (int i = 0; i < records.length(); i++) {
+                JSONObject r = records.optJSONObject(i);
+                if (r == null || !matchesDate(r.optString("DATE"),
+                    selectedReportMonth, selectedReportYear)) continue;
+
+                count++;
+                lines.add("RECORD " + count);
+                lines.add("------------------------------------------------------------");
+                for (String field : FIELDS) {
+                    String value = r.optString(field, "");
+                    lines.add(field + ": " + (value.isEmpty() ? "-" : value));
+                }
+                lines.add("");
+            }
+
+            String monthArg = "ALL MONTHS".equals(selectedReportMonth)
+                ? "ALL" : selectedReportMonth;
+            String yearArg = "ALL YEARS".equals(selectedReportYear)
+                ? "ALL" : selectedReportYear;
+            double[] totals = calculateTotals(monthArg, yearArg);
+
+            lines.add("============================================================");
+            lines.add("MONTHLY TOTAL SUMMARY");
+            lines.add("============================================================");
+            for (int i = 0; i < MONEY_FIELDS.length; i++)
+                lines.add(MONEY_FIELDS[i] + " : " + money(totals[i]));
+            lines.add("------------------------------------------------------------");
+            lines.add("TOTAL RECORDS: " + count);
+            lines.add("============================================================");
+            lines.add("Generated by VIPIN SERVICE CRM - OFFLINE REPORT");
+
+            final int pageWidth = 595;
+            final int pageHeight = 842;
+            final int left = 38;
+            final int right = 38;
+            final int top = 48;
+            final int bottom = 48;
+            android.graphics.Paint paint = new android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(Color.BLACK);
+            paint.setTextSize(9.5f);
+
+            // Wrap long address / remarks lines to fit the printable page width.
+            ArrayList<String> wrapped = new ArrayList<>();
+            for (String line : lines) {
+                if (line == null) line = "";
+                if (line.isEmpty()) {
+                    wrapped.add("");
+                    continue;
+                }
+                String remaining = line;
+                while (paint.measureText(remaining) > pageWidth - left - right) {
+                    int cut = remaining.length();
+                    while (cut > 1 && paint.measureText(remaining.substring(0, cut)) > pageWidth - left - right)
+                        cut--;
+                    wrapped.add(remaining.substring(0, cut));
+                    remaining = remaining.substring(cut);
+                }
+                wrapped.add(remaining);
+            }
+
+            int pageNumber = 1;
+            int y = top;
+            for (int i = 0; i < wrapped.size(); i++) {
+                String line = wrapped.get(i);
+                boolean heading = line.equals("VIPIN SERVICE CRM") ||
+                    line.equals("MONTHLY / YEARLY SERVICE REPORT") ||
+                    line.equals("MONTHLY TOTAL SUMMARY");
+
+                if (page == null || y > pageHeight - bottom) {
+                    if (page != null) document.finishPage(page);
+                    PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(
+                        pageWidth, pageHeight, pageNumber++).create();
+                    page = document.startPage(info);
+                    android.graphics.Canvas canvas = page.getCanvas();
+                    paint.setTypeface(Typeface.DEFAULT_BOLD);
+                    paint.setTextSize(8);
+                    canvas.drawText("VIPIN SERVICE CRM", left, 25, paint);
+                    canvas.drawText("PAGE " + (pageNumber - 1), pageWidth - 85, 25, paint);
+                    paint.setTypeface(Typeface.DEFAULT);
+                    paint.setTextSize(9.5f);
+                    y = top;
+                }
+
+                if (heading) {
+                    paint.setTypeface(Typeface.DEFAULT_BOLD);
+                    paint.setTextSize(heading.equals("VIPIN SERVICE CRM") ? 15 : 11);
+                } else {
+                    paint.setTypeface(Typeface.DEFAULT);
+                    paint.setTextSize(9.5f);
+                }
+                page.getCanvas().drawText(line, left, y, paint);
+                y += heading ? 21 : 15;
+            }
+
+            if (page != null) document.finishPage(page);
+            output = getContentResolver().openOutputStream(uri);
+            if (output == null) throw new IOException("PDF FILE OPEN ERROR");
+            document.writeTo(output);
+            output.flush();
+            toast("REPORT PDF SAVED SUCCESSFULLY");
+
+        } catch (Exception e) {
+            Toast.makeText(this, "PDF ERROR: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        } finally {
+            try { if (output != null) output.close(); } catch (Exception ignored) { }
+            document.close();
+        }
+    }
+
     // CSV EXPORT
     private void exportCSV() {
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -912,8 +1082,7 @@ public class MainActivity extends Activity {
         if (s == null) s = "";
         return "\"" + s.replace("\"", "\"\"") + "\"";
     }
-
-    // NAVIGATION
+// NAVIGATION
     private void goBack() {
         if ("ENTRY".equals(currentPage)) {
             if (entryFromRecords) {
