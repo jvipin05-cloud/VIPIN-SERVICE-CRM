@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
     private LinearLayout root, recordsLayout;
     private ScrollView pageScroll;
     private EditText[] inputs = new EditText[15];
+    private LinearLayout[] fieldGroups = new LinearLayout[15];
     private Spinner paymentSpinner, monthSpinner, yearSpinner;
     private EditText searchBox;
     private TextView statusText;
@@ -146,7 +147,7 @@ public class MainActivity extends Activity {
         pageScroll.setFillViewport(true);
         pageScroll.setClipToPadding(false);
         pageScroll.setVerticalScrollBarEnabled(true);
-        pageScroll.setPadding(0, dp(6), 0, dp(24));
+        pageScroll.setPadding(0, dp(6), 0, dp(48));
         pageScroll.addView(root);
         setContentView(pageScroll);
 
@@ -399,19 +400,26 @@ public class MainActivity extends Activity {
         currentPage = "ENTRY";
         if (editing < 0) { photoUris = new String[3]; pdfUri = ""; }
         inputs = new EditText[15];
+        fieldGroups = new LinearLayout[15];
         pageBase(editing >= 0 ? "EDIT SERVICE RECORD" : "NEW SERVICE RECORD");
 
         for (int i = 0; i < FIELDS.length; i++) {
+            LinearLayout group = vertical();
+            fieldGroups[i] = group;
+            LinearLayout.LayoutParams groupParams =
+                new LinearLayout.LayoutParams(-1, -2);
+            groupParams.topMargin = dp(7);
+            root.addView(group, groupParams);
+
             TextView label = text(FIELDS[i], 12, navy, true);
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-            p.topMargin = dp(7); root.addView(label, p);
+            group.addView(label);
 
             if ("PAYMENT MODE".equals(FIELDS[i])) {
                 paymentSpinner = new Spinner(this);
                 ArrayAdapter<String> a = new ArrayAdapter<>(this,
                     android.R.layout.simple_spinner_dropdown_item, PAYMENTS);
                 paymentSpinner.setAdapter(a);
-                root.addView(paymentSpinner);
+                group.addView(paymentSpinner);
             } else {
                 inputs[i] = edit(FIELDS[i]);
                 if (i == 0) {
@@ -428,7 +436,7 @@ public class MainActivity extends Activity {
                 }
                 if (i != 0) inputs[i].setImeOptions(i == 14 ?
                     EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT);
-                root.addView(inputs[i]);
+                group.addView(inputs[i]);
                 animateIn(inputs[i]);
                 setupKeyboard(inputs[i], i);
             }
@@ -464,33 +472,43 @@ public class MainActivity extends Activity {
         });
     }
 
-    // KEYBOARD AUTO-SCROLL FIX: keep the field label visible above the input.
+    // KEYBOARD AUTO-SCROLL: move the complete label + input group into view.
     private void scrollToInput(EditText field) {
         if (pageScroll == null || field == null) return;
 
+        final int index = findInputIndex(field);
+        final View target = (index >= 0 && fieldGroups != null
+            && fieldGroups[index] != null) ? fieldGroups[index] : field;
+
         pageScroll.postDelayed(() -> {
-            if (pageScroll == null || field.getWindowToken() == null) return;
+            if (pageScroll == null || target.getWindowToken() == null) return;
 
             try {
-                int[] fieldLocation = new int[2];
-                int[] scrollLocation = new int[2];
+                int[] targetPos = new int[2];
+                int[] scrollPos = new int[2];
+                target.getLocationOnScreen(targetPos);
+                pageScroll.getLocationOnScreen(scrollPos);
 
-                field.getLocationOnScreen(fieldLocation);
-                pageScroll.getLocationOnScreen(scrollLocation);
+                // Keep the field title below the status/header area.
+                int topLimit = scrollPos[1] + dp(18);
+                int bottomLimit = scrollPos[1] + pageScroll.getHeight() - dp(24);
+                int targetBottom = targetPos[1] + target.getHeight();
 
-                // Leave enough room above the input for its field label.
-                int desiredTop = dp(105);
-                int delta = fieldLocation[1] - scrollLocation[1] - desiredTop;
-
-                if (delta > 0) {
-                    pageScroll.smoothScrollBy(0, delta);
-                } else if (delta < -dp(20)) {
-                    pageScroll.smoothScrollBy(0, delta);
+                if (targetPos[1] < topLimit) {
+                    pageScroll.smoothScrollBy(0, targetPos[1] - topLimit);
+                } else if (targetBottom > bottomLimit) {
+                    pageScroll.smoothScrollBy(0, targetBottom - bottomLimit);
                 }
-            } catch (Exception ignored) {
-                // Keep the form usable even if the keyboard changes window size.
-            }
-        }, 300);
+            } catch (Exception ignored) { }
+        }, 350);
+    }
+
+    private int findInputIndex(EditText field) {
+        if (inputs == null) return -1;
+        for (int i = 0; i < inputs.length; i++) {
+            if (inputs[i] == field) return i;
+        }
+        return -1;
     }
 
     private void pickDate(EditText target) {
