@@ -1048,8 +1048,7 @@ public class MainActivity extends Activity {
 
                 if (heading) {
                     paint.setTypeface(Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(heading.equals("VIPIN SERVICE CRM") ? 15 : 11);
-                } else {
+                    paint.setTextSize(line.equals("VIPIN SERVICE CRM") ? 15 : 11);
                     paint.setTypeface(Typeface.DEFAULT);
                     paint.setTextSize(9.5f);
                 }
