@@ -145,6 +145,8 @@ public class MainActivity extends Activity {
         pageScroll = new ScrollView(this);
         pageScroll.setFillViewport(true);
         pageScroll.setClipToPadding(false);
+        pageScroll.setVerticalScrollBarEnabled(true);
+        pageScroll.setPadding(0, dp(6), 0, dp(24));
         pageScroll.addView(root);
         setContentView(pageScroll);
 
@@ -462,17 +464,33 @@ public class MainActivity extends Activity {
         });
     }
 
+    // KEYBOARD AUTO-SCROLL FIX: keep the field label visible above the input.
     private void scrollToInput(EditText field) {
-        if (pageScroll == null) return;
+        if (pageScroll == null || field == null) return;
+
         pageScroll.postDelayed(() -> {
+            if (pageScroll == null || field.getWindowToken() == null) return;
+
             try {
-                int[] location = new int[2];
-                field.getLocationOnScreen(location);
-                int[] parent = new int[2];
-                pageScroll.getLocationOnScreen(parent);
-                pageScroll.smoothScrollBy(0, location[1] - parent[1] - dp(45));
-            } catch (Exception ignored) { }
-        }, 220);
+                int[] fieldLocation = new int[2];
+                int[] scrollLocation = new int[2];
+
+                field.getLocationOnScreen(fieldLocation);
+                pageScroll.getLocationOnScreen(scrollLocation);
+
+                // Leave enough room above the input for its field label.
+                int desiredTop = dp(105);
+                int delta = fieldLocation[1] - scrollLocation[1] - desiredTop;
+
+                if (delta > 0) {
+                    pageScroll.smoothScrollBy(0, delta);
+                } else if (delta < -dp(20)) {
+                    pageScroll.smoothScrollBy(0, delta);
+                }
+            } catch (Exception ignored) {
+                // Keep the form usable even if the keyboard changes window size.
+            }
+        }, 300);
     }
 
     private void pickDate(EditText target) {
