@@ -111,7 +111,31 @@ public class MainActivity extends Activity {
             p.gravity = Gravity.CENTER_HORIZONTAL;
             p.bottomMargin = dp(10);
             parent.addView(logo, p);
+            animateIn(logo);
         } catch (Exception ignored) { }
+    }
+
+    // PREMIUM ENTRANCE AND BUTTON ANIMATIONS
+    private void animateIn(View view) {
+        if (view == null) return;
+        view.setAlpha(0f);
+        view.setTranslationY(dp(16));
+        view.setScaleX(0.97f);
+        view.setScaleY(0.97f);
+        view.animate().alpha(1f).translationY(0f).scaleX(1f).scaleY(1f)
+            .setDuration(420)
+            .setInterpolator(new android.view.animation.DecelerateInterpolator())
+            .start();
+    }
+
+    private void animatePress(View view) {
+        if (view == null) return;
+        view.animate().cancel();
+        view.setScaleX(0.97f);
+        view.setScaleY(0.97f);
+        view.animate().scaleX(1f).scaleY(1f).setDuration(180)
+            .setInterpolator(new android.view.animation.OvershootInterpolator())
+            .start();
     }
 
     private void pageBase(String title) {
@@ -132,6 +156,7 @@ public class MainActivity extends Activity {
         hp.topMargin = dp(10);
         hp.bottomMargin = dp(18);
         root.addView(header, hp);
+        animateIn(header);
     }
 
     private EditText edit(String hint) {
@@ -158,7 +183,8 @@ public class MainActivity extends Activity {
         p.topMargin = dp(8);
         p.bottomMargin = dp(4);
         parent.addView(b, p);
-        b.setOnClickListener(v -> action.run());
+        animateIn(b);
+        b.setOnClickListener(v -> { animatePress(b); action.run(); });
     }
 
     private void toast(String message) {
@@ -241,7 +267,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(80));
         p.topMargin = dp(8); p.bottomMargin = dp(8);
         root.addView(button, p);
-        button.setOnClickListener(v -> action.run());
+        animateIn(button);
+        button.setOnClickListener(v -> { animatePress(button); action.run(); });
     }
 
     private void showHome() {
@@ -400,6 +427,7 @@ public class MainActivity extends Activity {
                 if (i != 0) inputs[i].setImeOptions(i == 14 ?
                     EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT);
                 root.addView(inputs[i]);
+                animateIn(inputs[i]);
                 setupKeyboard(inputs[i], i);
             }
         }
