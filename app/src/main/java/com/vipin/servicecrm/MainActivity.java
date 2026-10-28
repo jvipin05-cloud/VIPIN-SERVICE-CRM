@@ -1406,9 +1406,9 @@ public class MainActivity extends Activity {
              .append("\n");
         }
 
-        ClipboardManager clipboard =
-            (ClipboardManager)
-            getSystemService(CLIPBOARD_SERVICE);
+        android.content.ClipboardManager clipboard =
+    (android.content.ClipboardManager)
+    getSystemService(CLIPBOARD_SERVICE);
 
         if (clipboard != null) {
             clipboard.setPrimaryClip(
