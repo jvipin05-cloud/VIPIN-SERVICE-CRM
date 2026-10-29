@@ -1,9 +1,15 @@
 package com.vipin.servicecrm;
 
 import android.app.Activity;
-import android.app.AlertDialog;
+import android.app.AlarmManager;
 import android.app.DatePickerDialog;
+import android.app.TimePickerDialog;
+import android.app.PendingIntent;
+import android.app.AlertDialog;
 import android.content.ClipData;
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -269,6 +275,7 @@ public class MainActivity extends Activity {
     private void persist() {
         getSharedPreferences(PREF, MODE_PRIVATE).edit().putString(RECORDS, records.toString()).apply();
     }
+
     private String getPassword() {
         return getSharedPreferences(PREF, MODE_PRIVATE).getString(PASSWORD, "1234");
     }
@@ -384,6 +391,7 @@ public class MainActivity extends Activity {
         homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), this::showEntry);
         homeButton("SEARCH / MONTH / YEAR RECORDS", "⌕", Color.rgb(0,170,180), Color.rgb(0,180,155), this::showRecords);
         homeButton("MONTHLY / YEARLY REPORTS", "▦", Color.rgb(103,35,235), Color.rgb(153,48,255), this::showReports);
+        homeButton("REMINDERS – AMC / COLLECTION / SERVICE", "⏰", Color.rgb(0,105,150), Color.rgb(0,160,190), this::showReminderForm);
         homeButton("EXPORT EXCEL / CSV", "▣", Color.rgb(255,105,0), Color.rgb(255,175,0), this::exportCSV);
         homeButton("CHANGE PASSWORD", "⚙", Color.rgb(220,0,130), Color.rgb(255,35,105), this::changePassword);
         homeButton("LOG OUT", "↪", Color.rgb(90,100,120), Color.rgb(115,125,145), this::showLogin);
@@ -401,8 +409,7 @@ public class MainActivity extends Activity {
         last.setPadding(0, dp(16), 0, dp(4));
         root.addView(last);
         addTotalGrid(root, calculateTotals(m, y));
-    }
-
+            }
     // DATE AND AMOUNT HELPERS
     private String normalizeDate(String value) {
         if (value == null) return "";
@@ -501,6 +508,84 @@ public class MainActivity extends Activity {
                 line.addView(card, cp);
             }
             parent.addView(line);
+        }
+    }
+
+
+    // OFFLINE CUSTOMER REMINDERS
+    private void showReminderForm() {
+        currentPage = "REMINDERS";
+        pageBase("CUSTOMER REMINDERS");
+        root.addView(text("REMINDER TYPE", 13, navy, true));
+        Spinner typeSpinner = new Spinner(this);
+        String[] types = {"AMC RENEWAL REMINDER", "PAYMENT / COLLECTION REMINDER", "CUSTOMER SERVICE REMINDER"};
+        typeSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, types));
+        root.addView(typeSpinner);
+
+        root.addView(text("CUSTOMER NAME", 13, navy, true));
+        EditText customer = edit("ENTER CUSTOMER NAME");
+        customer.setFilters(new InputFilter[]{new InputFilter.AllCaps()});
+        root.addView(customer);
+
+        root.addView(text("MOBILE NUMBER", 13, navy, true));
+        EditText mobile = edit("ENTER MOBILE NUMBER");
+        mobile.setInputType(3);
+        root.addView(mobile);
+
+        root.addView(text("REMINDER DETAILS", 13, navy, true));
+        EditText details = edit("E.G. AMC DUE / PAYMENT DUE / SERVICE VISIT");
+        details.setFilters(new InputFilter[]{new InputFilter.AllCaps()});
+        details.setSingleLine(false);
+        details.setMinLines(2);
+        root.addView(details);
+
+        final Calendar selected = Calendar.getInstance();
+        TextView dateLabel = text("DATE: " + String.format(Locale.US, "%02d-%02d-%04d", selected.get(Calendar.DAY_OF_MONTH), selected.get(Calendar.MONTH)+1, selected.get(Calendar.YEAR)), 15, ink, true);
+        TextView timeLabel = text("TIME: " + String.format(Locale.US, "%02d:%02d", selected.get(Calendar.HOUR_OF_DAY), selected.get(Calendar.MINUTE)), 15, ink, true);
+        addButton(root, "CHOOSE REMINDER DATE", navy, () -> new DatePickerDialog(this, (v, y, m, d) -> {
+            selected.set(Calendar.YEAR, y); selected.set(Calendar.MONTH, m); selected.set(Calendar.DAY_OF_MONTH, d);
+            dateLabel.setText("DATE: " + String.format(Locale.US, "%02d-%02d-%04d", d, m+1, y));
+        }, selected.get(Calendar.YEAR), selected.get(Calendar.MONTH), selected.get(Calendar.DAY_OF_MONTH)).show());
+        root.addView(dateLabel);
+        addButton(root, "CHOOSE REMINDER TIME", navy, () -> new TimePickerDialog(this, (v, h, m) -> {
+            selected.set(Calendar.HOUR_OF_DAY, h); selected.set(Calendar.MINUTE, m); selected.set(Calendar.SECOND, 0); selected.set(Calendar.MILLISECOND, 0);
+            timeLabel.setText("TIME: " + String.format(Locale.US, "%02d:%02d", h, m));
+        }, selected.get(Calendar.HOUR_OF_DAY), selected.get(Calendar.MINUTE), true).show());
+        root.addView(timeLabel);
+
+        addButton(root, "SAVE & SET REMINDER", Color.rgb(0,130,95), () -> {
+            String name = customer.getText().toString().trim().toUpperCase(Locale.ROOT);
+            String phone = mobile.getText().toString().trim();
+            String note = details.getText().toString().trim().toUpperCase(Locale.ROOT);
+            if (name.isEmpty()) { customer.setError("CUSTOMER NAME REQUIRED"); customer.requestFocus(); return; }
+            if (selected.getTimeInMillis() <= System.currentTimeMillis()) { toast("FUTURE DATE AND TIME SELECT करें"); return; }
+            String type = types[typeSpinner.getSelectedItemPosition()];
+            scheduleCustomerReminder(type, name, phone, note, selected.getTimeInMillis());
+        });
+        addButton(root, "BACK TO HOME", gold, this::showHome);
+    }
+
+    private void scheduleCustomerReminder(String type, String customer, String mobile, String details, long when) {
+        try {
+            int requestId = (int) (System.currentTimeMillis() & 0x7fffffff);
+            Intent alarmIntent = new Intent(this, ReminderReceiver.class);
+            alarmIntent.putExtra("type", type);
+            alarmIntent.putExtra("customer", customer);
+            alarmIntent.putExtra("mobile", mobile);
+            alarmIntent.putExtra("details", details);
+            PendingIntent pending = PendingIntent.getBroadcast(this, requestId, alarmIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarm == null) { toast("ALARM SERVICE उपलब्ध नहीं है"); return; }
+            // Works offline. Android may deliver a few minutes late to save battery.
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 8101);
+            }
+            toast("REMINDER SET SUCCESSFULLY");
+            showHome();
+        } catch (Exception e) {
+            Toast.makeText(this, "REMINDER ERROR: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -702,8 +787,7 @@ public class MainActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQ_PHOTO);
-    }
-
+                    }
     private void choosePDF() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.setType("application/pdf");
@@ -737,7 +821,8 @@ public class MainActivity extends Activity {
         if (requestCode == REQ_PHOTO) photoUris[photoSlot] = uri.toString();
         else if (requestCode == REQ_PDF) pdfUri = uri.toString();
         if (statusText != null) statusText.setText(attachmentStatus());
-                        }
+    }
+
     private boolean validateAmounts() {
         int[] indexes = {4, 5, 10, 11, 12, 13};
         for (int i : indexes) {
@@ -980,8 +1065,7 @@ public class MainActivity extends Activity {
         b.setTextColor(navy);
         return b;
     }
-
-    private void confirmDelete(int index) {
+private void confirmDelete(int index) {
         new AlertDialog.Builder(this).setMessage("यह रिकॉर्ड DELETE करें?")
                 .setNegativeButton("CANCEL", null)
                 .setPositiveButton("DELETE", (d, w) -> {
@@ -1313,7 +1397,7 @@ public class MainActivity extends Activity {
                 editing = -1;
                 showHome();
             }
-        } else if ("RECORDS".equals(currentPage) || "REPORTS".equals(currentPage)) {
+        } else if ("RECORDS".equals(currentPage) || "REPORTS".equals(currentPage) || "REMINDERS".equals(currentPage)) {
             showHome();
         } else if ("HOME".equals(currentPage)) {
             new AlertDialog.Builder(this).setTitle("EXIT VIPIN SERVICE CRM")
