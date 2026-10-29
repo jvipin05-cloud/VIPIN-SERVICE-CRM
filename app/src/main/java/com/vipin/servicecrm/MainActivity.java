@@ -174,13 +174,15 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(pale);
 
         pageScroll = new ScrollView(this);
-        pageScroll.setFillViewport(true);
+        pageScroll.setFillViewport(false);
         pageScroll.setClipToPadding(false);
         pageScroll.setVerticalScrollBarEnabled(true);
+        pageScroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         pageScroll.setFocusable(true);
         pageScroll.setFocusableInTouchMode(true);
         pageScroll.setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
-        pageScroll.setPadding(0, dp(4), 0, dp(36));
+        // Extra scroll space lets the last inputs and SAVE button clear the keyboard.
+        pageScroll.setPadding(0, dp(4), 0, dp(180));
         pageScroll.addView(root, new ScrollView.LayoutParams(-1, -2));
         setContentView(pageScroll);
 
@@ -355,7 +357,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
         bp.bottomMargin = dp(10);
         root.addView(banner, bp);
-homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), this::showEntry);
+
+        homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), this::showEntry);
         homeButton("SEARCH / MONTH / YEAR RECORDS", "⌕", Color.rgb(0,170,180), Color.rgb(0,180,155), this::showRecords);
         homeButton("MONTHLY / YEARLY REPORTS", "▦", Color.rgb(103,35,235), Color.rgb(153,48,255), this::showReports);
         homeButton("EXPORT EXCEL / CSV", "▣", Color.rgb(255,105,0), Color.rgb(255,175,0), this::exportCSV);
@@ -535,8 +538,7 @@ homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), 
         addButton(root, "SAVE RECORD", Color.rgb(42,133,102), this::saveRecord);
         addButton(root, "CANCEL / BACK", gold, this::goBack);
     }
-
-    private void setupKeyboard(EditText field, int index) {
+private void setupKeyboard(EditText field, int index) {
         field.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) scrollToInput(field);
         });
@@ -568,27 +570,45 @@ homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), 
 
     private void scrollToInput(EditText field) {
         if (pageScroll == null || field == null) return;
+
+        // Move the whole active field group above the keyboard.
         int index = findInputIndex(field);
         final View target = index >= 0 && fieldGroups != null && fieldGroups[index] != null
                 ? fieldGroups[index] : field;
+
         Runnable reveal = () -> {
             if (pageScroll == null || target.getWindowToken() == null) return;
             try {
                 Rect visible = new Rect();
                 getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
-                int[] pos = new int[2];
-                target.getLocationOnScreen(pos);
-                int bottom = pos[1] + target.getHeight();
-                int limit = visible.bottom - dp(24);
-                if (bottom > limit) pageScroll.smoothScrollBy(0, bottom - limit + dp(18));
-                else if (pos[1] < visible.top + dp(10))
-                    pageScroll.smoothScrollBy(0, pos[1] - visible.top - dp(12));
-                field.requestRectangleOnScreen(new Rect(0, 0, field.getWidth(), field.getHeight()), true);
+
+                int[] location = new int[2];
+                target.getLocationOnScreen(location);
+                int targetTop = location[1];
+                int targetBottom = targetTop + target.getHeight();
+
+                // Keep a safe gap above the keyboard, including Samsung IME.
+                int safeTop = visible.top + dp(12);
+                int safeBottom = visible.bottom - dp(115);
+                int delta = 0;
+
+                if (targetBottom > safeBottom) {
+                    delta = targetBottom - safeBottom;
+                } else if (targetTop < safeTop) {
+                    delta = targetTop - safeTop;
+                }
+
+                if (delta != 0) pageScroll.smoothScrollBy(0, delta);
+                field.requestRectangleOnScreen(
+                        new Rect(0, 0, field.getWidth(), field.getHeight()), true);
             } catch (Exception ignored) { }
         };
+
+        // Recheck after focus and after the keyboard has resized the window.
         pageScroll.post(reveal);
-        pageScroll.postDelayed(reveal, 250);
-        pageScroll.postDelayed(reveal, 550);
+        pageScroll.postDelayed(reveal, 180);
+        pageScroll.postDelayed(reveal, 420);
+        pageScroll.postDelayed(reveal, 750);
     }
 
     private int findInputIndex(EditText field) {
@@ -742,6 +762,7 @@ homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), 
             Toast.makeText(this, "Save error: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
+
     private void hideKeyboard() {
         try {
             InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
@@ -1017,8 +1038,7 @@ homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), 
         } catch (Exception e) {
             toast("PHOTO OPEN नहीं हो सकी");
         }
-    }
-
+            }
     private void openSavedPDF(JSONObject r) {
         String value = r.optString("PDF", "");
         if (value.isEmpty()) {
@@ -1237,4 +1257,3 @@ homeButton("ADD NEW RECORD", "＋", Color.rgb(0,112,255), Color.rgb(0,145,255), 
         goBack();
     }
 }
-
