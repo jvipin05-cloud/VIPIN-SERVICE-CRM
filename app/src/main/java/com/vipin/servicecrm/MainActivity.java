@@ -8,6 +8,10 @@ import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -55,25 +59,25 @@ public class MainActivity extends Activity {
     private static final int REQ_PHOTO = 701, REQ_EXPORT = 702, REQ_PDF = 703, REQ_REPORT_PDF = 704;
 
     private final String[] FIELDS = {
-        "DATE", "BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
+        "DATE", "AMC BILL NUMBER", "COLLECTION BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
         "CUSTOMER NAME", "MOBILE NUMBER", "ADDRESS", "SPARE PARTS",
-        "AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
+        "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
         "PAYMENT MODE", "REMARKS"
     };
     private final String[] PAYMENTS = {"CASH", "UPI", "PS UPI", "RKS UPI"};
     private final String[] MONEY_FIELDS = {
-        "AMC", "COLLECTION", "AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"
+        "AMC", "COLLECTION", "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"
     };
 
-    private final int navy = Color.rgb(31, 48, 79);
-    private final int pale = Color.rgb(235, 244, 255);
-    private final int ink = Color.rgb(39, 49, 67);
-    private final int gold = Color.rgb(246, 218, 153);
+    private final int navy = Color.rgb(8, 22, 55);
+    private final int pale = Color.rgb(239, 245, 255);
+    private final int ink = Color.rgb(28, 45, 75);
+    private final int gold = Color.rgb(48, 145, 245);
 
     private LinearLayout root, recordsLayout;
     private ScrollView pageScroll;
-    private EditText[] inputs = new EditText[15];
-    private LinearLayout[] fieldGroups = new LinearLayout[15];
+    private EditText[] inputs = new EditText[16];
+    private LinearLayout[] fieldGroups = new LinearLayout[16];
     private Spinner paymentSpinner, monthSpinner, yearSpinner;
     private EditText searchBox;
     private TextView statusText;
@@ -240,12 +244,31 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             records = new JSONArray();
         }
+        // One-time compatible migration: preserve every old AMOUNT value.
+        boolean changed = false;
+        for (int i = 0; i < records.length(); i++) {
+            JSONObject record = records.optJSONObject(i);
+            if (record == null) continue;
+            // Preserve legacy single BILL NUMBER without discarding it.
+            if (!record.has("AMC BILL NUMBER") && record.has("BILL NUMBER")) {
+                try { record.put("AMC BILL NUMBER", record.optString("BILL NUMBER")); changed = true; }
+                catch (Exception ignored) { }
+            }
+            if (!record.has("TOTAL AMOUNT") && record.has("AMOUNT")) {
+                try { record.put("TOTAL AMOUNT", record.opt("AMOUNT")); changed = true; }
+                catch (Exception ignored) { }
+            }
+            if (record.has("AMOUNT")) {
+                record.remove("AMOUNT");
+                changed = true;
+            }
+        }
+        if (changed) persist();
     }
 
     private void persist() {
         getSharedPreferences(PREF, MODE_PRIVATE).edit().putString(RECORDS, records.toString()).apply();
     }
-
     private String getPassword() {
         return getSharedPreferences(PREF, MODE_PRIVATE).getString(PASSWORD, "1234");
     }
@@ -417,6 +440,12 @@ public class MainActivity extends Activity {
         return p[2] + "-" + p[1] + "-" + p[0];
     }
 
+    private String readMoneyField(JSONObject record, String field) {
+        if (record == null) return "0";
+        if ("TOTAL AMOUNT".equals(field)) return record.optString("TOTAL AMOUNT", record.optString("AMOUNT", "0"));
+        return record.optString(field, "0");
+    }
+
     private double number(String s) {
         try {
             if (s == null) return 0;
@@ -443,7 +472,7 @@ public class MainActivity extends Activity {
             if (month != null && !"ALL".equals(month) && !date.substring(5, 7).equals(month)) continue;
             if (year != null && !"ALL".equals(year) && !date.startsWith(year + "-")) continue;
             for (int j = 0; j < MONEY_FIELDS.length; j++)
-                totals[j] += number(r.optString(MONEY_FIELDS[j]));
+                totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
         }
         return totals;
     }
@@ -482,8 +511,8 @@ public class MainActivity extends Activity {
             photoUris = new String[3];
             pdfUri = "";
         }
-        inputs = new EditText[15];
-        fieldGroups = new LinearLayout[15];
+        inputs = new EditText[16];
+        fieldGroups = new LinearLayout[16];
         pageBase(editing >= 0 ? "EDIT SERVICE RECORD" : "NEW SERVICE RECORD");
 
         for (int i = 0; i < FIELDS.length; i++) {
@@ -492,9 +521,12 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(-1, -2);
             gp.topMargin = dp(6);
             root.addView(group, gp);
-            group.addView(text(FIELDS[i], 12, navy, true));
+            String fieldLabel = FIELDS[i];
+            if (i == 1) fieldLabel = "BILL NUMBER – (AMC)";
+            else if (i == 2) fieldLabel = "BILL NUMBER – (COLLECTION)";
+            group.addView(text(fieldLabel, 12, navy, true));
 
-            if (i == 13) {
+            if (i == 14) {
                 paymentSpinner = new Spinner(this);
                 ArrayAdapter<String> a = new ArrayAdapter<>(this,
                         android.R.layout.simple_spinner_dropdown_item, PAYMENTS);
@@ -509,10 +541,10 @@ public class MainActivity extends Activity {
                     e.setOnClickListener(v -> pickDate(e));
                 } else {
                     e.setFilters(new InputFilter[]{new InputFilter.AllCaps()});
-                    if (i == 3 || i == 4 || i == 9 || i == 10 || i == 11 || i == 12)
+                    if (i == 4 || i == 5 || i == 10 || i == 11 || i == 12 || i == 13)
                         e.setInputType(8194);
-                    if (i == 6) e.setInputType(3);
-                    if (i == 7 || i == 8 || i == 14) {
+                    if (i == 7) e.setInputType(3);
+                    if (i == 8 || i == 9 || i == 15) {
                         e.setSingleLine(false);
                         e.setMinLines(1);
                         e.setMaxLines(3);
@@ -520,7 +552,7 @@ public class MainActivity extends Activity {
                                 | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
                     }
-                    e.setImeOptions(i == 14 ? EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT);
+                    e.setImeOptions(i == 15 ? EditorInfo.IME_ACTION_DONE : EditorInfo.IME_ACTION_NEXT);
                 }
                 group.addView(e);
                 animateIn(e);
@@ -538,7 +570,8 @@ public class MainActivity extends Activity {
         addButton(root, "SAVE RECORD", Color.rgb(42,133,102), this::saveRecord);
         addButton(root, "CANCEL / BACK", gold, this::goBack);
     }
-private void setupKeyboard(EditText field, int index) {
+
+    private void setupKeyboard(EditText field, int index) {
         field.setOnFocusChangeListener((v, hasFocus) -> {
             if (hasFocus) scrollToInput(field);
         });
@@ -548,7 +581,7 @@ private void setupKeyboard(EditText field, int index) {
                     && event.getAction() == KeyEvent.ACTION_DOWN;
             if (action == EditorInfo.IME_ACTION_NEXT || action == EditorInfo.IME_ACTION_DONE || enter) {
                 int next = index + 1;
-                while (next < FIELDS.length && (next == 0 || next == 13)) next++;
+                while (next < FIELDS.length && (next == 0 || next == 14)) next++;
                 if (next < FIELDS.length && inputs[next] != null) {
                     EditText nextField = inputs[next];
                     nextField.requestFocus();
@@ -633,12 +666,12 @@ private void setupKeyboard(EditText field, int index) {
         JSONObject r = records.optJSONObject(editing);
         if (r == null) return;
         for (int i = 0; i < FIELDS.length; i++) {
-            if (i == 13) {
+            if (i == 14) {
                 String value = r.optString(FIELDS[i], "CASH");
                 for (int j = 0; j < PAYMENTS.length; j++)
                     if (PAYMENTS[j].equals(value)) paymentSpinner.setSelection(j);
             } else if (inputs[i] != null) {
-                String value = r.optString(FIELDS[i]);
+                String value = i == 10 ? readMoneyField(r, "TOTAL AMOUNT") : r.optString(FIELDS[i]);
                 inputs[i].setText(i == 0 ? displayDate(value) : value);
             }
         }
@@ -704,10 +737,9 @@ private void setupKeyboard(EditText field, int index) {
         if (requestCode == REQ_PHOTO) photoUris[photoSlot] = uri.toString();
         else if (requestCode == REQ_PDF) pdfUri = uri.toString();
         if (statusText != null) statusText.setText(attachmentStatus());
-    }
-
+                        }
     private boolean validateAmounts() {
-        int[] indexes = {3, 4, 9, 10, 11, 12};
+        int[] indexes = {4, 5, 10, 11, 12, 13};
         for (int i : indexes) {
             String value = inputs[i].getText().toString().trim();
             if (!value.isEmpty()) {
@@ -737,7 +769,7 @@ private void setupKeyboard(EditText field, int index) {
         JSONObject r = new JSONObject();
         try {
             for (int i = 0; i < FIELDS.length; i++) {
-                if (i == 13) {
+                if (i == 14) {
                     Object selected = paymentSpinner.getSelectedItem();
                     r.put(FIELDS[i], selected == null ? "CASH" : selected.toString().toUpperCase(Locale.ROOT));
                 } else {
@@ -857,7 +889,7 @@ private void setupKeyboard(EditText field, int index) {
 
             shown++;
             for (int j = 0; j < MONEY_FIELDS.length; j++)
-                totals[j] += number(r.optString(MONEY_FIELDS[j]));
+                totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
 
             final int index = i;
             LinearLayout card = vertical();
@@ -868,7 +900,10 @@ private void setupKeyboard(EditText field, int index) {
             card.addView(title);
             for (String field : FIELDS) {
                 if ("DATE".equals(field) || "CUSTOMER NAME".equals(field)) continue;
-                TextView line = text(field + ": " + r.optString(field), 12, ink, true);
+                String displayField = field;
+                if ("AMC BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (AMC)";
+                else if ("COLLECTION BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (COLLECTION)";
+                TextView line = text(displayField + ": " + r.optString(field), 12, ink, true);
                 line.setPadding(0, dp(2), 0, dp(2));
                 card.addView(line);
             }
@@ -1038,7 +1073,8 @@ private void setupKeyboard(EditText field, int index) {
         } catch (Exception e) {
             toast("PHOTO OPEN नहीं हो सकी");
         }
-            }
+    }
+
     private void openSavedPDF(JSONObject r) {
         String value = r.optString("PDF", "");
         if (value.isEmpty()) {
@@ -1075,99 +1111,140 @@ private void setupKeyboard(EditText field, int index) {
         PdfDocument document = new PdfDocument();
         OutputStream output = null;
         PdfDocument.Page page = null;
+        final int pageWidth = 595, pageHeight = 842;
+        final int left = 34, right = 34;
+        final int blue = Color.rgb(28, 91, 235);
+        final int darkBlue = Color.rgb(8, 22, 55);
+        final int paleBlue = Color.rgb(232, 242, 255);
+        final int cyan = Color.rgb(48, 190, 255);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         try {
-            ArrayList<String> lines = new ArrayList<>();
-            lines.add("VIPIN SERVICE CRM");
-            lines.add("MONTHLY / YEARLY SERVICE REPORT");
-            lines.add("PERIOD: " + selectedReportMonth + " / " + selectedReportYear);
-            lines.add("============================================================");
-            lines.add("");
-            int count = 0;
-            for (int i = 0; i < records.length(); i++) {
-                JSONObject r = records.optJSONObject(i);
-                if (r == null || !matchesDate(r.optString("DATE"),
-                        selectedReportMonth, selectedReportYear)) continue;
-                count++;
-                lines.add("RECORD " + count);
-                lines.add("------------------------------------------------------------");
-                for (String field : FIELDS) {
-                    String value = r.optString(field, "");
-                    if ("DATE".equals(field)) value = displayDate(value);
-                    lines.add(field + ": " + (value.isEmpty() ? "-" : value));
-                }
-                lines.add("");
-            }
-
             String monthArg = "ALL MONTHS".equals(selectedReportMonth) ? "ALL" : selectedReportMonth;
             String yearArg = "ALL YEARS".equals(selectedReportYear) ? "ALL" : selectedReportYear;
             double[] totals = calculateTotals(monthArg, yearArg);
-            lines.add("============================================================");
-            lines.add("MONTHLY / YEARLY TOTAL SUMMARY");
-            lines.add("============================================================");
-            for (int i = 0; i < MONEY_FIELDS.length; i++)
-                lines.add(MONEY_FIELDS[i] + " : " + money(totals[i]));
-            lines.add("------------------------------------------------------------");
-            lines.add("TOTAL RECORDS: " + count);
-            lines.add("============================================================");
-            lines.add("Generated by VIPIN SERVICE CRM - OFFLINE REPORT");
-
-            final int pageWidth = 595, pageHeight = 842, left = 38, right = 38;
-            final int top = 48, bottom = 48;
-            android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
-            paint.setColor(Color.BLACK);
-            paint.setTextSize(9.5f);
-
-            ArrayList<String> wrapped = new ArrayList<>();
-            float maxWidth = pageWidth - left - right;
-            for (String line : lines) {
-                if (line == null || line.isEmpty()) {
-                    wrapped.add("");
-                    continue;
-                }
-                String remaining = line;
-                while (paint.measureText(remaining) > maxWidth) {
-                    int cut = remaining.length();
-                    while (cut > 1 && paint.measureText(remaining.substring(0, cut)) > maxWidth) cut--;
-                    wrapped.add(remaining.substring(0, cut));
-                    remaining = remaining.substring(cut);
-                }
-                wrapped.add(remaining);
+            ArrayList<JSONObject> selected = new ArrayList<>();
+            for (int i = 0; i < records.length(); i++) {
+                JSONObject r = records.optJSONObject(i);
+                if (r != null && matchesDate(r.optString("DATE"), selectedReportMonth, selectedReportYear))
+                    selected.add(r);
             }
+            final int[] pageNo = {0};
+            final float[] y = {0};
+            final PdfDocument.Page[] current = {null};
 
-            int pageNumber = 1;
-            int y = top;
-            for (String line : wrapped) {
-                boolean heading = line.equals("VIPIN SERVICE CRM")
-                        || line.equals("MONTHLY / YEARLY SERVICE REPORT")
-                        || line.equals("MONTHLY / YEARLY TOTAL SUMMARY");
-                int lineHeight = heading ? 22 : 15;
-                if (page == null || y + lineHeight > pageHeight - bottom) {
-                    if (page != null) document.finishPage(page);
-                    PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(
-                            pageWidth, pageHeight, pageNumber).create();
-                    page = document.startPage(info);
-                    pageNumber++;
-                    android.graphics.Canvas canvas = page.getCanvas();
-                    paint.setTypeface(Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(8);
-                    canvas.drawText("VIPIN SERVICE CRM", left, 25, paint);
-                    canvas.drawText("PAGE " + (pageNumber - 1), pageWidth - 85, 25, paint);
-                    paint.setTypeface(Typeface.DEFAULT);
-                    paint.setTextSize(9.5f);
-                    y = top;
+            Runnable newPage = () -> {
+                if (current[0] != null) document.finishPage(current[0]);
+                PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pageWidth, pageHeight, ++pageNo[0]).create();
+                current[0] = document.startPage(info);
+                Canvas c = current[0].getCanvas();
+                c.drawColor(Color.WHITE);
+                paint.setColor(darkBlue);
+                c.drawRoundRect(left, 22, pageWidth-right, 112, 18, 18, paint);
+                int logoId = getResources().getIdentifier("vipin_service_crm_icon_512", "drawable", getPackageName());
+                if (logoId != 0) {
+                    try {
+                        Bitmap logo = BitmapFactory.decodeResource(getResources(), logoId);
+                        if (logo != null) {
+                            android.graphics.Rect dst = new android.graphics.Rect(left+12, 31, left+88, 105);
+                            c.drawBitmap(logo, null, dst, paint);
+                            logo.recycle();
+                        }
+                    } catch (Exception ignored) { }
+                } else {
+                    paint.setColor(cyan); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3);
+                    c.drawCircle(left+48, 67, 30, paint); paint.setStyle(Paint.Style.FILL);
+                    paint.setTextSize(29); paint.setTypeface(Typeface.DEFAULT_BOLD);
+                    c.drawText("V", left+39, 77, paint);
                 }
-                Typeface oldTypeface = paint.getTypeface();
-                float oldSize = paint.getTextSize();
-                if (heading) {
-                    paint.setTypeface(Typeface.DEFAULT_BOLD);
-                    paint.setTextSize(line.equals("VIPIN SERVICE CRM") ? 15f : 11f);
-                }
-                page.getCanvas().drawText(line, left, y, paint);
-                paint.setTypeface(oldTypeface);
-                paint.setTextSize(oldSize);
-                y += lineHeight;
+                paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(19);
+                c.drawText("VIPIN SERVICE CRM", left+100, 57, paint);
+                paint.setTextSize(9); paint.setTypeface(Typeface.DEFAULT);
+                c.drawText("SERVICE  •  COLLECTION  •  RECORDS", left+101, 76, paint);
+                c.drawText("MONTHLY / YEARLY REPORT", left+101, 94, paint);
+                paint.setColor(darkBlue); paint.setTextSize(8); paint.setTypeface(Typeface.DEFAULT_BOLD);
+                c.drawText("PAGE " + pageNo[0], pageWidth-right-42, 128, paint);
+                y[0] = 145;
+            };
+            Runnable ensurePage = () -> { if (current[0] == null) newPage.run(); };
+
+            newPage.run();
+            Canvas canvas = current[0].getCanvas();
+            paint.setColor(darkBlue); paint.setTextSize(11); paint.setTypeface(Typeface.DEFAULT_BOLD);
+            canvas.drawText("REPORT PERIOD: " + selectedReportYear + " / " + selectedReportMonth, left, y[0], paint);
+            y[0] += 18;
+
+            // Boxed summary tiles, matching the CRM's blue theme.
+            String[] summaryLabels = {"AMC", "COLLECTION", "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"};
+            int gap = 7, tileW = (pageWidth-left-right-gap*2)/3, tileH = 48;
+            for (int i = 0; i < 6; i++) {
+                int row = i/3, col = i%3;
+                float x = left + col*(tileW+gap), top = y[0] + row*(tileH+7);
+                paint.setColor(i%2==0 ? blue : darkBlue);
+                canvas.drawRoundRect(x, top, x+tileW, top+tileH, 8, 8, paint);
+                paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(8);
+                canvas.drawText(summaryLabels[i], x+8, top+16, paint);
+                paint.setTextSize(12);
+                canvas.drawText(money(totals[i]), x+8, top+35, paint);
             }
-            if (page != null) document.finishPage(page);
+            y[0] += tileH*2 + 24;
+
+            // BILL NUMBER is split into separate AMC and COLLECTION number columns.
+            float[] widths = {85, 130, 140, 172};
+            String[] headers = {"DATE", "BILL NUMBER - (AMC)", "(COLLECTION)", "TOTAL AMOUNT"};
+            paint.setColor(darkBlue);
+            canvas.drawRoundRect(left, y[0], pageWidth-right, y[0]+27, 6, 6, paint);
+            float x = left;
+            paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(8);
+            for (int i=0;i<4;i++) { canvas.drawText(headers[i], x+5, y[0]+18, paint); x += widths[i]; }
+            y[0] += 27;
+
+            for (int i=0;i<selected.size();i++) {
+                JSONObject r = selected.get(i);
+                if (y[0] + 28 > pageHeight-58) {
+                    newPage.run(); canvas = current[0].getCanvas();
+                    paint.setColor(darkBlue); paint.setTextSize(10); paint.setTypeface(Typeface.DEFAULT_BOLD);
+                    canvas.drawText("SERVICE RECORDS (CONTINUED)", left, y[0], paint); y[0]+=17;
+                    paint.setColor(darkBlue); canvas.drawRoundRect(left,y[0],pageWidth-right,y[0]+25,5,5,paint);
+                    paint.setColor(Color.WHITE); paint.setTextSize(8);
+                    x=left; for(int k=0;k<4;k++){canvas.drawText(headers[k],x+5,y[0]+17,paint);x+=widths[k];} y[0]+=25;
+                }
+                float rowTop=y[0];
+                paint.setColor(i%2==0 ? paleBlue : Color.WHITE);
+                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+28,paint);
+                paint.setColor(Color.rgb(185,205,232)); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(.7f);
+                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+28,paint);
+                x=left; for(int k=0;k<3;k++){x+=widths[k];canvas.drawLine(x,rowTop,x,rowTop+28,paint);} paint.setStyle(Paint.Style.FILL);
+                paint.setColor(darkBlue); paint.setTypeface(Typeface.DEFAULT); paint.setTextSize(8);
+                canvas.drawText(displayDate(r.optString("DATE")),left+5,rowTop+18,paint);
+                canvas.drawText(r.optString("AMC BILL NUMBER","-"),left+widths[0]+5,rowTop+18,paint);
+                canvas.drawText(r.optString("COLLECTION BILL NUMBER","-"),left+widths[0]+widths[1]+5,rowTop+18,paint);
+                paint.setTypeface(Typeface.DEFAULT_BOLD);
+                canvas.drawText(money(number(readMoneyField(r,"TOTAL AMOUNT"))),left+widths[0]+widths[1]+widths[2]+5,rowTop+18,paint);
+                y[0]+=28;
+            }
+            if (selected.isEmpty()) {
+                paint.setColor(Color.GRAY); paint.setTextSize(10); paint.setTypeface(Typeface.DEFAULT);
+                canvas.drawText("NO RECORDS FOUND FOR THIS PERIOD",left,y[0]+18,paint); y[0]+=30;
+            }
+            if (y[0] + 95 > pageHeight-45) { newPage.run(); canvas=current[0].getCanvas(); }
+            y[0]+=12;
+            paint.setColor(darkBlue); canvas.drawRoundRect(left,y[0],pageWidth-right,y[0]+25,6,6,paint);
+            paint.setColor(Color.WHITE); paint.setTextSize(10); paint.setTypeface(Typeface.DEFAULT_BOLD);
+            canvas.drawText("MONTHLY / YEARLY TOTAL SUMMARY",left+10,y[0]+17,paint); y[0]+=25;
+            for (int i=0;i<6;i++) {
+                float rowTop=y[0]; paint.setColor(i%2==0?paleBlue:Color.WHITE);
+                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+22,paint);
+                paint.setColor(darkBlue); paint.setTextSize(9); paint.setTypeface(Typeface.DEFAULT_BOLD);
+                canvas.drawText(summaryLabels[i],left+8,rowTop+15,paint);
+                canvas.drawText(money(totals[i]),pageWidth-right-100,rowTop+15,paint);
+                y[0]+=22;
+            }
+            paint.setColor(blue); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(11);
+            canvas.drawText("TOTAL RECORDS: " + selected.size(),left,y[0]+20,paint);
+            paint.setColor(Color.GRAY); paint.setTextSize(7); paint.setTypeface(Typeface.DEFAULT);
+            canvas.drawText("Generated offline by VIPIN SERVICE CRM",left,pageHeight-22,paint);
+
+            if (current[0] != null) document.finishPage(current[0]);
             output = getContentResolver().openOutputStream(uri);
             if (output == null) throw new IOException("PDF FILE OPEN ERROR");
             document.writeTo(output);
@@ -1176,9 +1253,7 @@ private void setupKeyboard(EditText field, int index) {
         } catch (Exception e) {
             Toast.makeText(this, "PDF ERROR: " + e.getMessage(), Toast.LENGTH_LONG).show();
         } finally {
-            try {
-                if (output != null) output.close();
-            } catch (Exception ignored) { }
+            try { if (output != null) output.close(); } catch (Exception ignored) { }
             document.close();
         }
     }
