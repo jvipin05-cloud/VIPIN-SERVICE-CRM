@@ -62,6 +62,7 @@ public class MainActivity extends Activity {
     private static final String PREF = "vipin_service_crm";
     private static final String RECORDS = "records";
     private static final String PASSWORD = "password";
+    private static final String REMINDERS = "reminders";
     private static final int REQ_PHOTO = 701, REQ_EXPORT = 702, REQ_PDF = 703, REQ_REPORT_PDF = 704;
 
     private final String[] FIELDS = {
@@ -88,6 +89,7 @@ public class MainActivity extends Activity {
     private EditText searchBox;
     private TextView statusText;
     private JSONArray records = new JSONArray();
+    private JSONArray reminders = new JSONArray();
     private int editing = -1, photoSlot = 0;
     private String[] photoUris = new String[3];
     private String pdfUri = "";
@@ -103,6 +105,8 @@ public class MainActivity extends Activity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                 | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         loadRecords();
+        loadReminders();
+        reschedulePendingReminders();
         showLogin();
     }
 
@@ -276,6 +280,76 @@ public class MainActivity extends Activity {
         getSharedPreferences(PREF, MODE_PRIVATE).edit().putString(RECORDS, records.toString()).apply();
     }
 
+    // REMINDER STORAGE - reminders remain saved until the user deletes them.
+    private void loadReminders() {
+        String raw = getSharedPreferences(PREF, MODE_PRIVATE).getString(REMINDERS, "[]");
+        try { reminders = new JSONArray(raw); }
+        catch (Exception e) { reminders = new JSONArray(); }
+    }
+
+    private void saveReminders() {
+        getSharedPreferences(PREF, MODE_PRIVATE).edit()
+                .putString(REMINDERS, reminders.toString()).apply();
+    }
+
+    private int findReminderIndex(String id) {
+        for (int i = 0; i < reminders.length(); i++) {
+            JSONObject item = reminders.optJSONObject(i);
+            if (item != null && id.equals(item.optString("ID"))) return i;
+        }
+        return -1;
+    }
+
+    private int reminderRequestCode(long id) {
+        return (int) (id & 0x7fffffff);
+    }
+
+    private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
+        long id = item.optLong("ID", 0L);
+        Intent alarmIntent = new Intent(this, ReminderReceiver.class);
+        alarmIntent.putExtra("reminder_id", id);
+        alarmIntent.putExtra("type", item.optString("TYPE"));
+        alarmIntent.putExtra("customer", item.optString("CUSTOMER"));
+        alarmIntent.putExtra("mobile", item.optString("MOBILE"));
+        alarmIntent.putExtra("details", item.optString("DETAILS"));
+        return PendingIntent.getBroadcast(this, reminderRequestCode(id), alarmIntent,
+                flags | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private void scheduleSavedReminder(JSONObject item) {
+        if (item == null || item.optBoolean("DONE", false) || item.optBoolean("FIRED", false)) return;
+        long when = item.optLong("TIME", 0L);
+        if (when <= System.currentTimeMillis()) return;
+        AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarm == null) return;
+        PendingIntent pending = reminderPendingIntent(item, PendingIntent.FLAG_UPDATE_CURRENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+        } else {
+            alarm.set(AlarmManager.RTC_WAKEUP, when, pending);
+        }
+    }
+
+    private void reschedulePendingReminders() {
+        if (reminders == null) return;
+        for (int i = 0; i < reminders.length(); i++) {
+            scheduleSavedReminder(reminders.optJSONObject(i));
+        }
+    }
+
+    private void cancelReminderAlarm(JSONObject item) {
+        if (item == null) return;
+        long id = item.optLong("ID", 0L);
+        Intent alarmIntent = new Intent(this, ReminderReceiver.class);
+        PendingIntent pending = PendingIntent.getBroadcast(this, reminderRequestCode(id), alarmIntent,
+                PendingIntent.FLAG_NO_CREATE | PendingIntent.FLAG_IMMUTABLE);
+        if (pending != null) {
+            AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (alarm != null) alarm.cancel(pending);
+            pending.cancel();
+        }
+    }
+
     private String getPassword() {
         return getSharedPreferences(PREF, MODE_PRIVATE).getString(PASSWORD, "1234");
     }
@@ -324,7 +398,7 @@ public class MainActivity extends Activity {
                         toast("Current password गलत है");
                     } else if (newP.length() < 4 || !newP.getText().toString()
                             .equals(confirm.getText().toString())) {
-                        toast("नया पासवर्ड जाँचें (कम से कम 4 अक्षर)");
+                                                toast("नया पासवर्ड जाँचें (कम से कम 4 अक्षर)");
                     } else {
                         getSharedPreferences(PREF, MODE_PRIVATE).edit()
                                 .putString(PASSWORD, newP.getText().toString()).apply();
@@ -409,7 +483,8 @@ public class MainActivity extends Activity {
         last.setPadding(0, dp(16), 0, dp(4));
         root.addView(last);
         addTotalGrid(root, calculateTotals(m, y));
-            }
+    }
+
     // DATE AND AMOUNT HELPERS
     private String normalizeDate(String value) {
         if (value == null) return "";
@@ -511,7 +586,6 @@ public class MainActivity extends Activity {
         }
     }
 
-
     // OFFLINE CUSTOMER REMINDERS
     private void showReminderForm() {
         currentPage = "REMINDERS";
@@ -562,31 +636,122 @@ public class MainActivity extends Activity {
             String type = types[typeSpinner.getSelectedItemPosition()];
             scheduleCustomerReminder(type, name, phone, note, selected.getTimeInMillis());
         });
+        addButton(root, "VIEW SAVED REMINDERS (" + reminders.length() + ")", Color.rgb(0,105,150), this::showReminderList);
         addButton(root, "BACK TO HOME", gold, this::showHome);
     }
 
     private void scheduleCustomerReminder(String type, String customer, String mobile, String details, long when) {
         try {
-            int requestId = (int) (System.currentTimeMillis() & 0x7fffffff);
-            Intent alarmIntent = new Intent(this, ReminderReceiver.class);
-            alarmIntent.putExtra("type", type);
-            alarmIntent.putExtra("customer", customer);
-            alarmIntent.putExtra("mobile", mobile);
-            alarmIntent.putExtra("details", details);
-            PendingIntent pending = PendingIntent.getBroadcast(this, requestId, alarmIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             if (alarm == null) { toast("ALARM SERVICE उपलब्ध नहीं है"); return; }
-            // Works offline. Android may deliver a few minutes late to save battery.
-            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+
+            long id = System.currentTimeMillis();
+            while (findReminderIndex(String.valueOf(id)) >= 0) id++;
+
+            JSONObject item = new JSONObject();
+            item.put("ID", id);
+            item.put("TYPE", type);
+            item.put("CUSTOMER", customer);
+            item.put("MOBILE", mobile);
+            item.put("DETAILS", details);
+            item.put("TIME", when);
+            item.put("DONE", false);
+            item.put("FIRED", false);
+
+            reminders.put(item);
+            saveReminders();
+            scheduleSavedReminder(item);
+
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 8101);
             }
-            toast("REMINDER SET SUCCESSFULLY");
-            showHome();
+            toast("REMINDER SAVED & SET SUCCESSFULLY");
+            showReminderList();
         } catch (Exception e) {
             Toast.makeText(this, "REMINDER ERROR: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void showReminderList() {
+        loadReminders();
+        currentPage = "REMINDER_LIST";
+        pageBase("SAVED CUSTOMER REMINDERS");
+
+        if (reminders.length() == 0) {
+            root.addView(text("NO REMINDERS SAVED", 15, ink, true));
+        } else {
+            for (int i = reminders.length() - 1; i >= 0; i--) {
+                JSONObject item = reminders.optJSONObject(i);
+                if (item == null) continue;
+                final String id = item.optString("ID");
+                final boolean done = item.optBoolean("DONE", false);
+                final boolean fired = item.optBoolean("FIRED", false);
+
+                LinearLayout card = vertical();
+                card.setPadding(dp(12), dp(12), dp(12), dp(12));
+                card.setBackground(shape(Color.WHITE, 14, Color.rgb(210,220,235)));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+                cp.bottomMargin = dp(10);
+                root.addView(card, cp);
+
+                card.addView(text(item.optString("TYPE"), 16, navy, true));
+                card.addView(text("CUSTOMER: " + item.optString("CUSTOMER"), 14, ink, true));
+                card.addView(text("MOBILE: " + item.optString("MOBILE"), 13, ink, false));
+                card.addView(text("DETAILS: " + item.optString("DETAILS"), 13, ink, false));
+                String dateTime = new java.text.SimpleDateFormat("dd-MM-yyyy hh:mm a", Locale.getDefault())
+                        .format(new java.util.Date(item.optLong("TIME", 0L)));
+                card.addView(text("DATE & TIME: " + dateTime, 13, ink, false));
+
+                String status = done ? "COMPLETED" : (fired ? "NOTIFICATION SENT" :
+                        (item.optLong("TIME", 0L) < System.currentTimeMillis() ? "OVERDUE" : "PENDING"));
+                card.addView(text("STATUS: " + status, 13,
+                        done ? Color.rgb(0,130,75) : gold, true));
+
+                if (!done) {
+                    addButton(card, "MARK COMPLETE", Color.rgb(0,130,85), () -> completeReminder(id));
+                }
+                addButton(card, "DELETE REMINDER", Color.rgb(170,45,55), () -> confirmDeleteReminder(id));
+            }
+        }
+
+        addButton(root, "＋ NEW REMINDER", Color.rgb(0,105,150), this::showReminderForm);
+        addButton(root, "BACK TO HOME", gold, this::showHome);
+    }
+
+    private void completeReminder(String id) {
+        int index = findReminderIndex(id);
+        if (index < 0) return;
+        JSONObject item = reminders.optJSONObject(index);
+        if (item == null) return;
+        try {
+            item.put("DONE", true);
+            cancelReminderAlarm(item);
+            saveReminders();
+            toast("REMINDER MARKED COMPLETE");
+            showReminderList();
+        } catch (Exception e) {
+            toast("ERROR: " + e.getMessage());
+        }
+    }
+
+    private void confirmDeleteReminder(String id) {
+        new AlertDialog.Builder(this)
+                .setTitle("DELETE REMINDER?")
+                .setMessage("क्या आप यह Reminder हमेशा के लिए हटाना चाहते हैं?")
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("DELETE", (dialog, which) -> {
+                    int index = findReminderIndex(id);
+                    if (index < 0) return;
+                    JSONObject item = reminders.optJSONObject(index);
+                    cancelReminderAlarm(item);
+                    JSONArray updated = new JSONArray();
+                    for (int i = 0; i < reminders.length(); i++) {
+                        if (i != index) updated.put(reminders.opt(i));
+                    }
+                    reminders = updated;
+                    saveReminders();
+                    showReminderList();
+                }).show();
     }
 
     // ADD / EDIT RECORD
@@ -632,7 +797,7 @@ public class MainActivity extends Activity {
                     if (i == 8 || i == 9 || i == 15) {
                         e.setSingleLine(false);
                         e.setMinLines(1);
-                        e.setMaxLines(3);
+                                                e.setMaxLines(3);
                         e.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                                 | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
@@ -689,7 +854,6 @@ public class MainActivity extends Activity {
     private void scrollToInput(EditText field) {
         if (pageScroll == null || field == null) return;
 
-        // Move the whole active field group above the keyboard.
         int index = findInputIndex(field);
         final View target = index >= 0 && fieldGroups != null && fieldGroups[index] != null
                 ? fieldGroups[index] : field;
@@ -705,7 +869,6 @@ public class MainActivity extends Activity {
                 int targetTop = location[1];
                 int targetBottom = targetTop + target.getHeight();
 
-                // Keep a safe gap above the keyboard, including Samsung IME.
                 int safeTop = visible.top + dp(12);
                 int safeBottom = visible.bottom - dp(115);
                 int delta = 0;
@@ -722,7 +885,6 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) { }
         };
 
-        // Recheck after focus and after the keyboard has resized the window.
         pageScroll.post(reveal);
         pageScroll.postDelayed(reveal, 180);
         pageScroll.postDelayed(reveal, 420);
@@ -787,7 +949,8 @@ public class MainActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         startActivityForResult(intent, REQ_PHOTO);
-                    }
+    }
+
     private void choosePDF() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.setType("application/pdf");
@@ -1031,7 +1194,8 @@ public class MainActivity extends Activity {
         totalTitle.setPadding(0, dp(8), 0, dp(4));
         recordsLayout.addView(totalTitle);
         addTotalsText(recordsLayout, totals);
-        if (shown == 0) recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
+                                      }
+            if (shown == 0) recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
     }
 
     private void addTotalsText(LinearLayout parent, double[] totals) {
@@ -1065,7 +1229,8 @@ public class MainActivity extends Activity {
         b.setTextColor(navy);
         return b;
     }
-private void confirmDelete(int index) {
+
+    private void confirmDelete(int index) {
         new AlertDialog.Builder(this).setMessage("यह रिकॉर्ड DELETE करें?")
                 .setNegativeButton("CANCEL", null)
                 .setPositiveButton("DELETE", (d, w) -> {
@@ -1257,7 +1422,6 @@ private void confirmDelete(int index) {
             canvas.drawText("REPORT PERIOD: " + selectedReportYear + " / " + selectedReportMonth, left, y[0], paint);
             y[0] += 18;
 
-            // Boxed summary tiles, matching the CRM's blue theme.
             String[] summaryLabels = {"AMC", "COLLECTION", "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"};
             int gap = 7, tileW = (pageWidth-left-right-gap*2)/3, tileH = 48;
             for (int i = 0; i < 6; i++) {
@@ -1272,7 +1436,6 @@ private void confirmDelete(int index) {
             }
             y[0] += tileH*2 + 24;
 
-            // BILL NUMBER is split into separate AMC and COLLECTION number columns.
             float[] widths = {85, 130, 140, 172};
             String[] headers = {"DATE", "BILL NUMBER - (AMC)", "(COLLECTION)", "TOTAL AMOUNT"};
             paint.setColor(darkBlue);
@@ -1397,7 +1560,8 @@ private void confirmDelete(int index) {
                 editing = -1;
                 showHome();
             }
-        } else if ("RECORDS".equals(currentPage) || "REPORTS".equals(currentPage) || "REMINDERS".equals(currentPage)) {
+        } else if ("RECORDS".equals(currentPage) || "REPORTS".equals(currentPage)
+                || "REMINDERS".equals(currentPage) || "REMINDER_LIST".equals(currentPage)) {
             showHome();
         } else if ("HOME".equals(currentPage)) {
             new AlertDialog.Builder(this).setTitle("EXIT VIPIN SERVICE CRM")
@@ -1415,4 +1579,7 @@ private void confirmDelete(int index) {
     @Override public void onBackPressed() {
         goBack();
     }
-}
+                        }
+
+    
+    
