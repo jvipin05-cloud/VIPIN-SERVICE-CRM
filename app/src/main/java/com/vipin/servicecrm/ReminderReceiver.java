@@ -1,4 +1,3 @@
-
 package com.vipin.servicecrm;
 
 import android.app.Notification;
@@ -8,15 +7,23 @@ import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 
-public class ReminderReceiver extends BroadcastReceiver {
+import org.json.JSONArray;
+import org.json.JSONObject;
 
+public class ReminderReceiver extends BroadcastReceiver {
+    private static final String PREF = "vipin_service_crm";
+    private static final String REMINDERS = "reminders";
     private static final String CHANNEL_ID = "vipin_crm_reminders";
 
     @Override
     public void onReceive(Context context, Intent intent) {
+        if (intent == null) return;
 
+        long reminderId = intent.getLongExtra("reminder_id", -1L);
         String type = intent.getStringExtra("type");
         String customer = intent.getStringExtra("customer");
         String mobile = intent.getStringExtra("mobile");
@@ -26,6 +33,39 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (customer == null) customer = "CUSTOMER";
         if (mobile == null) mobile = "";
         if (details == null) details = "";
+
+        // Mark reminder as fired, but NEVER delete it.
+        if (reminderId >= 0) {
+            SharedPreferences prefs =
+                    context.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+
+            try {
+                JSONArray items = new JSONArray(
+                        prefs.getString(REMINDERS, "[]"));
+
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject item = items.optJSONObject(i);
+
+                    if (item != null &&
+                            item.optLong("ID", -2L) == reminderId) {
+                        item.put("FIRED", true);
+                        prefs.edit()
+                                .putString(REMINDERS, items.toString())
+                                .apply();
+                        break;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        // Without notification permission, keep the saved reminder.
+        if (Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(
+                        "android.permission.POST_NOTIFICATIONS")
+                        != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
 
         NotificationManager manager =
                 (NotificationManager) context.getSystemService(
@@ -38,31 +78,33 @@ public class ReminderReceiver extends BroadcastReceiver {
                     CHANNEL_ID,
                     "VIPIN SERVICE CRM REMINDERS",
                     NotificationManager.IMPORTANCE_HIGH);
-
-            channel.setDescription("AMC, PAYMENT AND SERVICE REMINDERS");
+            channel.setDescription(
+                    "AMC, PAYMENT AND SERVICE REMINDERS");
             manager.createNotificationChannel(channel);
         }
 
         Intent openApp = new Intent(context, MainActivity.class);
-        openApp.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
-                | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        openApp.setFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK |
+                Intent.FLAG_ACTIVITY_CLEAR_TOP);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(
+        if (reminderId >= 0) {
+            openApp.putExtra("reminder_id", reminderId);
+        }
+
+        int requestCode = reminderId >= 0
+                ? (int) (reminderId & 0x7fffffff) : 8102;
+
+        PendingIntent contentIntent = PendingIntent.getActivity(
                 context,
-                (int) System.currentTimeMillis(),
+                requestCode,
                 openApp,
-                PendingIntent.FLAG_UPDATE_CURRENT
-                        | PendingIntent.FLAG_IMMUTABLE);
+                PendingIntent.FLAG_UPDATE_CURRENT |
+                PendingIntent.FLAG_IMMUTABLE);
 
         String message = customer;
-
-        if (!mobile.isEmpty()) {
-            message += " | " + mobile;
-        }
-
-        if (!details.isEmpty()) {
-            message += "\n" + details;
-        }
+        if (!mobile.isEmpty()) message += " | " + mobile;
+        if (!details.isEmpty()) message += "\n" + details;
 
         Notification.Builder builder;
 
@@ -77,14 +119,15 @@ public class ReminderReceiver extends BroadcastReceiver {
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("VIPIN CRM - " + type)
                 .setContentText(message)
-                .setStyle(new Notification.BigTextStyle()
-                        .bigText(message))
+                .setStyle(new Notification.BigTextStyle().bigText(message))
                 .setAutoCancel(true)
-                .setContentIntent(pendingIntent)
+                .setContentIntent(contentIntent)
                 .build();
 
-        manager.notify(
-                (int) System.currentTimeMillis(),
-                notification);
+        int notificationId = reminderId >= 0
+                ? (int) (reminderId & 0x7fffffff)
+                : (int) System.currentTimeMillis();
+
+        manager.notify(notificationId, notification);
     }
 }
