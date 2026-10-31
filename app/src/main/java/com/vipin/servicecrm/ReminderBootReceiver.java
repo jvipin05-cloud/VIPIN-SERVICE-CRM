@@ -1,3 +1,4 @@
+
 package com.vipin.servicecrm;
 
 import android.app.AlarmManager;
@@ -34,11 +35,10 @@ public class ReminderBootReceiver extends BroadcastReceiver {
     public static void rescheduleAll(Context context) {
 
         try {
-            String saved = context.getSharedPreferences(
-                    PREF, Context.MODE_PRIVATE)
-                    .getString(REMINDERS, "[]");
-
-            JSONArray array = new JSONArray(saved);
+            JSONArray array = new JSONArray(
+                    context.getSharedPreferences(
+                            PREF, Context.MODE_PRIVATE)
+                            .getString(REMINDERS, "[]"));
 
             AlarmManager alarm = (AlarmManager)
                     context.getSystemService(Context.ALARM_SERVICE);
@@ -66,14 +66,10 @@ public class ReminderBootReceiver extends BroadcastReceiver {
                         context, ReminderReceiver.class);
 
                 reminderIntent.putExtra("reminder_id", id);
-                reminderIntent.putExtra(
-                        "type", item.optString("TYPE"));
-                reminderIntent.putExtra(
-                        "customer", item.optString("CUSTOMER"));
-                reminderIntent.putExtra(
-                        "mobile", item.optString("MOBILE"));
-                reminderIntent.putExtra(
-                        "details", item.optString("DETAILS"));
+                reminderIntent.putExtra("type", item.optString("TYPE"));
+                reminderIntent.putExtra("customer", item.optString("CUSTOMER"));
+                reminderIntent.putExtra("mobile", item.optString("MOBILE"));
+                reminderIntent.putExtra("details", item.optString("DETAILS"));
 
                 int requestCode = (int) (id & 0x7fffffff);
 
@@ -87,9 +83,17 @@ public class ReminderBootReceiver extends BroadcastReceiver {
                 try {
                     if (when <= now) {
 
-                        // Reminder time passed while phone was switched off.
-                        // Send it now; receiver checks FIRED and DONE.
+                        // Fire overdue reminder through its receiver.
+                        alarm.cancel(pending);
                         context.sendBroadcast(reminderIntent);
+
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                            && alarm.canScheduleExactAlarms()) {
+
+                        alarm.setExactAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                when,
+                                pending);
 
                     } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 
