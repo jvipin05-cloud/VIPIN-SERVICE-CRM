@@ -1216,6 +1216,15 @@ public class MainActivity extends Activity {
         totalTitle.setPadding(0, dp(8), 0, dp(4));
         recordsLayout.addView(totalTitle);
         addTotalsText(recordsLayout, totals);
+                TextView totalTitle = text("FILTERED TOTALS", 18, navy, true);
+        totalTitle.setPadding(0, dp(8), 0, dp(4));
+        recordsLayout.addView(totalTitle);
+        addTotalsText(recordsLayout, totals);
+
+        if (shown == 0) {
+            recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
+        }
+    }
                                 
             if (shown == 0) recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
     }
