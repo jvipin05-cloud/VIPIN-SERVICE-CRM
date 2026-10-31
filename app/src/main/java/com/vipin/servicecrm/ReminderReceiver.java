@@ -27,6 +27,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (intent == null) return;
 
         long reminderId = intent.getLongExtra("reminder_id", -1L);
+
         String type = intent.getStringExtra("type");
         String customer = intent.getStringExtra("customer");
         String mobile = intent.getStringExtra("mobile");
@@ -37,10 +38,16 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (mobile == null) mobile = "";
         if (details == null) details = "";
 
-        // Notification permission check
+        // Already completed or fired reminders must not notify again.
+        if (reminderId >= 0 &&
+                isReminderAlreadyHandled(context, reminderId)) {
+            return;
+        }
+
+        // Android 13+ notification permission.
         if (Build.VERSION.SDK_INT >= 33 &&
                 context.checkSelfPermission(
-                        "android.permission.POST_NOTIFICATIONS")
+                        android.Manifest.permission.POST_NOTIFICATIONS)
                         != PackageManager.PERMISSION_GRANTED) {
             return;
         }
@@ -80,7 +87,7 @@ public class ReminderReceiver extends BroadcastReceiver {
                 requestCode,
                 openApp,
                 PendingIntent.FLAG_UPDATE_CURRENT |
-                PendingIntent.FLAG_IMMUTABLE);
+                        PendingIntent.FLAG_IMMUTABLE);
 
         String message = customer;
 
@@ -117,28 +124,55 @@ public class ReminderReceiver extends BroadcastReceiver {
         try {
             manager.notify(notificationId, notification);
 
-            // Notification सफल होने के बाद ही FIRED करें।
-            // Reminder को कभी अपने आप DELETE नहीं करना है।
+            // Save FIRED only after notification is posted.
             if (reminderId >= 0) {
                 markReminderFired(context, reminderId);
             }
 
-        } catch (SecurityException ignored) {
-            // Permission न होने पर reminder saved रहेगा।
+        } catch (SecurityException e) {
+            e.printStackTrace();
         }
     }
 
-    private void markReminderFired(Context context, long reminderId) {
+    private boolean isReminderAlreadyHandled(
+            Context context, long reminderId) {
 
-        SharedPreferences prefs =
-                context.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        SharedPreferences prefs = context.getSharedPreferences(
+                PREF, Context.MODE_PRIVATE);
 
         try {
             JSONArray items = new JSONArray(
                     prefs.getString(REMINDERS, "[]"));
 
             for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
 
+                if (item != null &&
+                        item.optLong("ID", -2L) == reminderId) {
+
+                    return item.optBoolean("FIRED", false) ||
+                            item.optBoolean("DONE", false);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // If the saved reminder cannot be found, do not show a stale alarm.
+        return true;
+    }
+
+    private void markReminderFired(
+            Context context, long reminderId) {
+
+        SharedPreferences prefs = context.getSharedPreferences(
+                PREF, Context.MODE_PRIVATE);
+
+        try {
+            JSONArray items = new JSONArray(
+                    prefs.getString(REMINDERS, "[]"));
+
+            for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.optJSONObject(i);
 
                 if (item != null &&
@@ -146,15 +180,16 @@ public class ReminderReceiver extends BroadcastReceiver {
 
                     item.put("FIRED", true);
 
+                    // commit() saves immediately before receiver exits.
                     prefs.edit()
                             .putString(REMINDERS, items.toString())
-                            .apply();
+                            .commit();
 
-                    break;
+                    return;
                 }
             }
-
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
