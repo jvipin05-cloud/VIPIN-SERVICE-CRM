@@ -317,17 +317,39 @@ public class MainActivity extends Activity {
     }
 
     private void scheduleSavedReminder(JSONObject item) {
-        if (item == null || item.optBoolean("DONE", false) || item.optBoolean("FIRED", false)) return;
-        long when = item.optLong("TIME", 0L);
-        if (when <= System.currentTimeMillis()) return;
-        AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-        if (alarm == null) return;
-        PendingIntent pending = reminderPendingIntent(item, PendingIntent.FLAG_UPDATE_CURRENT);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
+    if (item == null) return;
+
+    if (item.optBoolean("DONE", false)
+            || item.optBoolean("FIRED", false)) {
+        return;
+    }
+
+    long when = item.optLong("TIME", 0);
+    if (when <= 0) return;
+
+    AlarmManager alarm =
+            (AlarmManager) getSystemService(ALARM_SERVICE);
+
+    if (alarm == null) return;
+
+    PendingIntent pending =
+            reminderPendingIntent(item, PendingIntent.FLAG_UPDATE_CURRENT);
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (alarm.canScheduleExactAlarms()) {
+            alarm.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, when, pending);
         } else {
-            alarm.set(AlarmManager.RTC_WAKEUP, when, pending);
+            alarm.setAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP, when, pending);
         }
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        alarm.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, when, pending);
+    } else {
+        alarm.setExact(
+                AlarmManager.RTC_WAKEUP, when, pending);
+    }
     }
 
     private void reschedulePendingReminders() {
