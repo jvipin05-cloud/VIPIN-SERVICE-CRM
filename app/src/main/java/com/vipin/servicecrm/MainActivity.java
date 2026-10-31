@@ -1541,54 +1541,319 @@ private void renderRecords() {
                     x=left; for(int k=0;k<4;k++){canvas.drawText(headers[k],x+5,y[0]+17,paint);x+=widths[k];} y[0]+=25;
                 }
                 float rowTop=y[0];
-                paint.setColor(i%2==0 ? paleBlue : Color.WHITE);
-                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+28,paint);
-                paint.setColor(Color.rgb(185,205,232)); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(.7f);
-                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+28,paint);
-                x=left; for(int k=0;k<3;k++){x+=widths[k];canvas.drawLine(x,rowTop,x,rowTop+28,paint);} paint.setStyle(Paint.Style.FILL);
-                paint.setColor(darkBlue); paint.setTypeface(Typeface.DEFAULT); paint.setTextSize(8);
-                canvas.drawText(displayDate(r.optString("DATE")),left+5,rowTop+18,paint);
-                canvas.drawText(r.optString("AMC BILL NUMBER","-"),left+widths[0]+5,rowTop+18,paint);
-                canvas.drawText(r.optString("COLLECTION BILL NUMBER","-"),left+widths[0]+widths[1]+5,rowTop+18,paint);
-                paint.setTypeface(Typeface.DEFAULT_BOLD);
-                canvas.drawText(money(number(readMoneyField(r,"TOTAL AMOUNT"))),left+widths[0]+widths[1]+widths[2]+5,rowTop+18,paint);
-                y[0]+=28;
-            }
-            if (selected.isEmpty()) {
-                paint.setColor(Color.GRAY); paint.setTextSize(10); paint.setTypeface(Typeface.DEFAULT);
-                canvas.drawText("NO RECORDS FOUND FOR THIS PERIOD",left,y[0]+18,paint); y[0]+=30;
-            }
-            if (y[0] + 95 > pageHeight-45) { newPage.run(); canvas=current[0].getCanvas(); }
-            y[0]+=12;
-            paint.setColor(darkBlue); canvas.drawRoundRect(left,y[0],pageWidth-right,y[0]+25,6,6,paint);
-            paint.setColor(Color.WHITE); paint.setTextSize(10); paint.setTypeface(Typeface.DEFAULT_BOLD);
-            canvas.drawText("MONTHLY / YEARLY TOTAL SUMMARY",left+10,y[0]+17,paint); y[0]+=25;
-            for (int i=0;i<6;i++) {
-                float rowTop=y[0]; paint.setColor(i%2==0?paleBlue:Color.WHITE);
-                canvas.drawRect(left,rowTop,pageWidth-right,rowTop+22,paint);
-                paint.setColor(darkBlue); paint.setTextSize(9); paint.setTypeface(Typeface.DEFAULT_BOLD);
-                canvas.drawText(summaryLabels[i],left+8,rowTop+15,paint);
-                canvas.drawText(money(totals[i]),pageWidth-right-100,rowTop+15,paint);
-                y[0]+=22;
-            }
-            paint.setColor(blue); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(11);
-            canvas.drawText("TOTAL RECORDS: " + selected.size(),left,y[0]+20,paint);
-            paint.setColor(Color.GRAY); paint.setTextSize(7); paint.setTypeface(Typeface.DEFAULT);
-            canvas.drawText("Generated offline by VIPIN SERVICE CRM",left,pageHeight-22,paint);
 
-            if (current[0] != null) document.finishPage(current[0]);
-            output = getContentResolver().openOutputStream(uri);
-            if (output == null) throw new IOException("PDF FILE OPEN ERROR");
-            document.writeTo(output);
-            output.flush();
-            toast("REPORT PDF SAVED SUCCESSFULLY");
-        } catch (Exception e) {
-            Toast.makeText(this, "PDF ERROR: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        } finally {
-            try { if (output != null) output.close(); } catch (Exception ignored) { }
-            document.close();
+private void writeMonthlyPDF(Uri uri) {
+    PdfDocument document = new PdfDocument();
+    OutputStream output = null;
+
+    final int pageWidth = 842;
+    final int pageHeight = 595;
+    final int left = 24;
+    final int right = 24;
+
+    final int navy = Color.rgb(8, 22, 55);
+    final int blue = Color.rgb(28, 91, 235);
+    final int cyan = Color.rgb(48, 190, 255);
+    final int paleBlue = Color.rgb(232, 242, 255);
+
+    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    try {
+        String monthArg = "ALL MONTHS".equals(selectedReportMonth)
+                ? "ALL" : selectedReportMonth;
+        String yearArg = "ALL YEARS".equals(selectedReportYear)
+                ? "ALL" : selectedReportYear;
+
+        double[] totals = calculateTotals(monthArg, yearArg);
+
+        ArrayList<JSONObject> selected = new ArrayList<>();
+
+        for (int i = 0; i < records.length(); i++) {
+            JSONObject r = records.optJSONObject(i);
+
+            if (r != null && matchesDate(
+                    r.optString("DATE"),
+                    selectedReportMonth,
+                    selectedReportYear)) {
+                selected.add(r);
+            }
         }
+
+        final int[] pageNo = {0};
+        final float[] y = {0};
+        final PdfDocument.Page[] current = {null};
+
+        String[] headers = {
+                "SR", "DATE", "AMC BILL", "COLL. BILL",
+                "PRODUCT", "AMC", "COLLECT.",
+                "TOTAL AMT", "SPARE", "WARRANTY", "NET AMT"
+        };
+
+        float[] widths = {
+                28, 65, 72, 72, 90,
+                60, 70, 80, 75, 80, 102
+        };
+
+        Runnable drawTableHeader = () -> {
+            Canvas c = current[0].getCanvas();
+
+            paint.setColor(navy);
+            c.drawRoundRect(left, y[0], pageWidth - right,
+                    y[0] + 25, 5, 5, paint);
+
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTextSize(7);
+
+            float x = left;
+            for (int i = 0; i < headers.length; i++) {
+                c.drawText(headers[i], x + 3, y[0] + 16, paint);
+                x += widths[i];
+            }
+
+            y[0] += 25;
+        };
+
+        Runnable newPage = () -> {
+            if (current[0] != null) {
+                document.finishPage(current[0]);
+            }
+
+            PdfDocument.PageInfo info =
+                    new PdfDocument.PageInfo.Builder(
+                            pageWidth, pageHeight, ++pageNo[0])
+                            .create();
+
+            current[0] = document.startPage(info);
+
+            Canvas c = current[0].getCanvas();
+            c.drawColor(Color.WHITE);
+
+            paint.setColor(navy);
+            c.drawRoundRect(left, 18, pageWidth - right,
+                    88, 14, 14, paint);
+
+            int logoId = getResources().getIdentifier(
+                    "vipin_service_crm_icon_512",
+                    "drawable", getPackageName());
+
+            if (logoId != 0) {
+                try {
+                    Bitmap logo = BitmapFactory.decodeResource(
+                            getResources(), logoId);
+
+                    if (logo != null) {
+                        android.graphics.Rect dst =
+                                new android.graphics.Rect(
+                                        left + 12, 24,
+                                        left + 72, 82);
+
+                        c.drawBitmap(logo, null, dst, paint);
+                        logo.recycle();
+                    }
+                } catch (Exception ignored) { }
+            }
+
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTextSize(18);
+            c.drawText("VIPIN SERVICE CRM",
+                    left + 82, 47, paint);
+
+            paint.setTypeface(Typeface.DEFAULT);
+            paint.setTextSize(9);
+            c.drawText("SERVICE  •  COLLECTION  •  RECORDS",
+                    left + 83, 64, paint);
+
+            paint.setTextSize(8);
+            c.drawText("MONTHLY / YEARLY REPORT",
+                    left + 83, 78, paint);
+
+            paint.setColor(navy);
+            paint.setTextSize(8);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            c.drawText("PAGE " + pageNo[0],
+                    pageWidth - right - 42, 104, paint);
+
+            y[0] = 112;
+        };
+
+        newPage.run();
+
+        Canvas canvas = current[0].getCanvas();
+
+        paint.setColor(navy);
+        paint.setTypeface(Typeface.DEFAULT_BOLD);
+        paint.setTextSize(10);
+
+        canvas.drawText(
+                "REPORT PERIOD: " + selectedReportYear
+                        + " / " + selectedReportMonth,
+                left, y[0], paint);
+
+        y[0] += 14;
+
+        String[] summaryLabels = {
+                "AMC", "COLLECTION", "TOTAL AMOUNT",
+                "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"
+        };
+
+        int gap = 7;
+        int tileW = (pageWidth - left - right - gap * 5) / 6;
+        int tileH = 39;
+
+        for (int i = 0; i < 6; i++) {
+            float x = left + i * (tileW + gap);
+
+            paint.setColor(i % 2 == 0 ? blue : navy);
+            canvas.drawRoundRect(
+                    x, y[0], x + tileW, y[0] + tileH,
+                    6, 6, paint);
+
+            paint.setColor(Color.WHITE);
+            paint.setTypeface(Typeface.DEFAULT_BOLD);
+            paint.setTextSize(7);
+            canvas.drawText(summaryLabels[i],
+                    x + 5, y[0] + 13, paint);
+
+            paint.setTextSize(10);
+            canvas.drawText(money(totals[i]),
+                    x + 5, y[0] + 29, paint);
+        }
+
+        y[0] += tileH + 12;
+
+        drawTableHeader.run();
+
+        for (int i = 0; i < selected.size(); i++) {
+
+            if (y[0] + 22 > pageHeight - 48) {
+                newPage.run();
+                canvas = current[0].getCanvas();
+                drawTableHeader.run();
+            }
+
+            JSONObject r = selected.get(i);
+
+            String[] values = {
+                    String.valueOf(i + 1),
+                    displayDate(r.optString("DATE")),
+                    r.optString("AMC BILL NUMBER", "-"),
+                    r.optString("COLLECTION BILL NUMBER", "-"),
+                    r.optString("PRODUCT NAME", "-"),
+                    money(number(readMoneyField(r, "AMC"))),
+                    money(number(readMoneyField(r, "COLLECTION"))),
+                    money(number(readMoneyField(r, "TOTAL AMOUNT"))),
+                    money(number(readMoneyField(r, "SPARE AMOUNT"))),
+                    money(number(readMoneyField(r, "WARRANTY AMOUNT"))),
+                    money(number(readMoneyField(r, "NET AMOUNT")))
+            };
+
+            float rowTop = y[0];
+
+            paint.setColor(i % 2 == 0 ? paleBlue : Color.WHITE);
+            canvas.drawRect(left, rowTop,
+                    pageWidth - right, rowTop + 22, paint);
+
+            paint.setColor(Color.rgb(190, 205, 225));
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(0.5f);
+            canvas.drawRect(left, rowTop,
+                    pageWidth - right, rowTop + 22, paint);
+
+            float x = left;
+
+            for (int k = 0; k < values.length; k++) {
+
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(navy);
+                paint.setTypeface(
+                        k == 7 || k == 10
+                                ? Typeface.DEFAULT_BOLD
+                                : Typeface.DEFAULT);
+
+                paint.setTextSize(7);
+
+                String value = values[k] == null ? "" : values[k];
+
+                while (value.length() > 1
+                        && paint.measureText(value) > widths[k] - 7) {
+                    value = value.substring(0, value.length() - 2) + "..";
+                }
+
+                canvas.drawText(value, x + 3, rowTop + 14, paint);
+
+                x += widths[k];
+            }
+
+            y[0] += 22;
+        }
+
+        if (selected.isEmpty()) {
+            paint.setColor(Color.GRAY);
+            paint.setTextSize(11);
+            paint.setTypeface(Typeface.DEFAULT);
+
+            canvas.drawText(
+                    "NO RECORDS FOUND FOR THIS PERIOD",
+                    left, y[0] + 20, paint);
+
+            y[0] += 30;
+        }
+
+        y[0] += 8;
+
+        paint.setColor(navy);
+        paint.setTypeface(Typeface.DEFAULT_BOLD);
+        paint.setTextSize(12);
+
+        canvas.drawText(
+                "TOTAL RECORDS: " + selected.size(),
+                left, y[0] + 18, paint);
+
+        y[0] += 28;
+
+        paint.setColor(blue);
+        paint.setTextSize(9);
+        paint.setTypeface(Typeface.DEFAULT_BOLD);
+
+        canvas.drawText(
+                "VIPIN SERVICE CRM  |  OFFLINE REPORT",
+                left, pageHeight - 20, paint);
+
+        if (current[0] != null) {
+            document.finishPage(current[0]);
+        }
+
+        output = getContentResolver().openOutputStream(uri);
+
+        if (output == null) {
+            throw new IOException("PDF FILE OPEN ERROR");
+        }
+
+        document.writeTo(output);
+        output.flush();
+
+        toast("REPORT PDF SAVED SUCCESSFULLY");
+
+    } catch (Exception e) {
+
+        Toast.makeText(
+                this,
+                "PDF ERROR: " + e.getMessage(),
+                Toast.LENGTH_LONG
+        ).show();
+
+    } finally {
+
+        try {
+            if (output != null) output.close();
+        } catch (Exception ignored) { }
+
+        document.close();
     }
+}
+
 
     // CSV EXPORT
     private void exportCSV() {
