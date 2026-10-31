@@ -1426,7 +1426,13 @@ private void renderRecords() {
     }
 
     // OFFLINE PDF EXPORT
-    
+    private void exportMonthlyPDF() {
+    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("application/pdf");
+    intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM_REPORT.pdf");
+    startActivityForResult(intent, REQ_REPORT_PDF);
+    }
 
 private void writeMonthlyPDF(Uri uri) {
     PdfDocument document = new PdfDocument();
