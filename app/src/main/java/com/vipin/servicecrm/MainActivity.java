@@ -1141,93 +1141,143 @@ public class MainActivity extends Activity {
         public void onNothingSelected(AdapterView<?> p) { }
     }
 
-    private void renderRecords() {
-        if (recordsLayout == null) return;
-        recordsLayout.removeAllViews();
-        String q = searchBox == null ? "" : searchBox.getText().toString().toLowerCase(Locale.ROOT).trim();
-        String month = monthSpinner == null ? "ALL MONTHS" : monthSpinner.getSelectedItem().toString();
-        String year = yearSpinner == null ? "ALL YEARS" : yearSpinner.getSelectedItem().toString();
-        double[] totals = new double[MONEY_FIELDS.length];
-        int shown = 0;
+    
+private void renderRecords() {
+    if (recordsLayout == null) return;
 
-        for (int i = records.length() - 1; i >= 0; i--) {
-            JSONObject r = records.optJSONObject(i);
-            if (r == null || !matchesDate(r.optString("DATE"), month, year)) continue;
-            StringBuilder all = new StringBuilder();
-            for (String field : FIELDS) all.append(r.optString(field)).append(' ');
-            if (!all.toString().toLowerCase(Locale.ROOT).contains(q)) continue;
+    recordsLayout.removeAllViews();
 
-            shown++;
-            for (int j = 0; j < MONEY_FIELDS.length; j++)
-                totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
+    String q = searchBox == null ? "" :
+            searchBox.getText().toString().toLowerCase(Locale.ROOT).trim();
 
-            final int index = i;
-            LinearLayout card = vertical();
-            card.setPadding(dp(12), dp(11), dp(12), dp(11));
-            card.setBackground(shape(Color.WHITE, 14, Color.rgb(218,224,233)));
-            TextView title = text(r.optString("CUSTOMER NAME") + " | "
-                    + displayDate(r.optString("DATE")), 15, navy, true);
-            card.addView(title);
-            for (String field : FIELDS) {
-                if ("DATE".equals(field) || "CUSTOMER NAME".equals(field)) continue;
-                String displayField = field;
-                if ("AMC BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (AMC)";
-                else if ("COLLECTION BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (COLLECTION)";
-                TextView line = text(displayField + ": " + r.optString(field), 12, ink, true);
-                line.setPadding(0, dp(2), 0, dp(2));
-                card.addView(line);
-            }
+    String month = monthSpinner == null ? "ALL MONTHS" :
+            monthSpinner.getSelectedItem().toString();
 
-            LinearLayout row1 = horizontal();
-            Button copy = smallButton("COPY TEXT");
-            Button edit = smallButton("EDIT");
-            Button del = smallButton("DELETE");
-            row1.addView(copy, new LinearLayout.LayoutParams(0, dp(42), 1));
-            row1.addView(edit, new LinearLayout.LayoutParams(0, dp(42), 1));
-            row1.addView(del, new LinearLayout.LayoutParams(0, dp(42), 1));
-            card.addView(row1);
+    String year = yearSpinner == null ? "ALL YEARS" :
+            yearSpinner.getSelectedItem().toString();
 
-            LinearLayout row2 = horizontal();
-            Button photos = smallButton("VIEW PHOTOS");
-            Button pdf = smallButton("OPEN PDF");
-            row2.addView(photos, new LinearLayout.LayoutParams(0, dp(42), 1));
-            row2.addView(pdf, new LinearLayout.LayoutParams(0, dp(42), 1));
-            card.addView(row2);
+    double[] totals = new double[MONEY_FIELDS.length];
+    int shown = 0;
 
-            copy.setOnClickListener(v -> copyRecord(r));
-            edit.setOnClickListener(v -> {
-                editing = index;
-                entryFromRecords = true;
-                showEntry();
-            });
-            del.setOnClickListener(v -> confirmDelete(index));
-            photos.setOnClickListener(v -> showPhotos(r));
-            pdf.setOnClickListener(v -> openSavedPDF(r));
+    for (int i = records.length() - 1; i >= 0; i--) {
+        JSONObject r = records.optJSONObject(i);
 
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
-            cp.topMargin = dp(9);
-            recordsLayout.addView(card, cp);
+        if (r == null || !matchesDate(r.optString("DATE"), month, year))
+            continue;
+
+        StringBuilder all = new StringBuilder();
+        for (String field : FIELDS) {
+            all.append(r.optString(field)).append(' ');
         }
 
-        TextView count = text("MATCHING RECORDS: " + shown, 14, navy, true);
-        count.setPadding(0, dp(10), 0, dp(5));
-        recordsLayout.addView(count);
-        TextView totalTitle = text("FILTERED TOTALS", 18, navy, true);
-        totalTitle.setPadding(0, dp(8), 0, dp(4));
-        recordsLayout.addView(totalTitle);
-        addTotalsText(recordsLayout, totals);
-                TextView totalTitle = text("FILTERED TOTALS", 18, navy, true);
-        totalTitle.setPadding(0, dp(8), 0, dp(4));
-        recordsLayout.addView(totalTitle);
-        addTotalsText(recordsLayout, totals);
+        if (!all.toString().toLowerCase(Locale.ROOT).contains(q))
+            continue;
 
-        if (shown == 0) {
-            recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
+        shown++;
+
+        for (int j = 0; j < MONEY_FIELDS.length; j++) {
+            totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
         }
+
+        final int index = i;
+
+        LinearLayout card = vertical();
+        card.setPadding(dp(12), dp(11), dp(12), dp(11));
+        card.setBackground(shape(Color.WHITE, 14, Color.rgb(218,224,233)));
+
+        TextView title = text(
+                r.optString("CUSTOMER NAME") + " | " +
+                displayDate(r.optString("DATE")),
+                15, navy, true
+        );
+        card.addView(title);
+
+        for (String field : FIELDS) {
+            if ("DATE".equals(field) || "CUSTOMER NAME".equals(field))
+                continue;
+
+            String displayField = field;
+
+            if ("AMC BILL NUMBER".equals(field))
+                displayField = "BILL NUMBER – (AMC)";
+            else if ("COLLECTION BILL NUMBER".equals(field))
+                displayField = "BILL NUMBER – (COLLECTION)";
+
+            TextView line = text(
+                    displayField + ": " + r.optString(field),
+                    12, ink, true
+            );
+
+            line.setPadding(0, dp(2), 0, dp(2));
+            card.addView(line);
+        }
+
+        LinearLayout row1 = horizontal();
+
+        Button copy = smallButton("COPY TEXT");
+        Button edit = smallButton("EDIT");
+        Button del = smallButton("DELETE");
+
+        row1.addView(copy, new LinearLayout.LayoutParams(0, dp(42), 1));
+        row1.addView(edit, new LinearLayout.LayoutParams(0, dp(42), 1));
+        row1.addView(del, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+        card.addView(row1);
+
+        LinearLayout row2 = horizontal();
+
+        Button photos = smallButton("VIEW PHOTOS");
+        Button pdf = smallButton("OPEN PDF");
+
+        row2.addView(photos, new LinearLayout.LayoutParams(0, dp(42), 1));
+        row2.addView(pdf, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+        card.addView(row2);
+
+        copy.setOnClickListener(v -> copyRecord(r));
+
+        edit.setOnClickListener(v -> {
+            editing = index;
+            entryFromRecords = true;
+            showEntry();
+        });
+
+        del.setOnClickListener(v -> confirmDelete(index));
+        photos.setOnClickListener(v -> showPhotos(r));
+        pdf.setOnClickListener(v -> openSavedPDF(r));
+
+        LinearLayout.LayoutParams cp =
+                new LinearLayout.LayoutParams(-1, -2);
+
+        cp.topMargin = dp(9);
+        recordsLayout.addView(card, cp);
     }
-                                
-            if (shown == 0) recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
+
+    TextView count = text(
+            "MATCHING RECORDS: " + shown,
+            14, navy, true
+    );
+
+    count.setPadding(0, dp(10), 0, dp(5));
+    recordsLayout.addView(count);
+
+    TextView totalTitle = text(
+            "FILTERED TOTALS",
+            18, navy, true
+    );
+
+    totalTitle.setPadding(0, dp(8), 0, dp(4));
+    recordsLayout.addView(totalTitle);
+
+    addTotalsText(recordsLayout, totals);
+
+    if (shown == 0) {
+        recordsLayout.addView(
+                text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false)
+        );
     }
+}
+
 
     private void addTotalsText(LinearLayout parent, double[] totals) {
         for (int i = 0; i < MONEY_FIELDS.length; i++) {
