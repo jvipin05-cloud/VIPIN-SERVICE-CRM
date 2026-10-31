@@ -56,6 +56,10 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.TreeSet;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.pdf.PdfDocument;
 
 public class MainActivity extends Activity {
 
