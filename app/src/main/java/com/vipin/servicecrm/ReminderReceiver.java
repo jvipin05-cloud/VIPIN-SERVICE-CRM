@@ -1,5 +1,5 @@
-aage
-    jjǰĥpackage com.vipin.servicecrm;
+
+package com.vipin.servicecrm;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -16,12 +16,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class ReminderReceiver extends BroadcastReceiver {
+
     private static final String PREF = "vipin_service_crm";
     private static final String REMINDERS = "reminders";
     private static final String CHANNEL_ID = "vipin_crm_reminders";
 
     @Override
     public void onReceive(Context context, Intent intent) {
+
         if (intent == null) return;
 
         long reminderId = intent.getLongExtra("reminder_id", -1L);
@@ -35,32 +37,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (mobile == null) mobile = "";
         if (details == null) details = "";
 
-        // Mark reminder as fired, but NEVER delete it.
-        if (reminderId >= 0) {
-            SharedPreferences prefs =
-                    context.getSharedPreferences(PREF, Context.MODE_PRIVATE);
-
-            try {
-                JSONArray items = new JSONArray(
-                        prefs.getString(REMINDERS, "[]"));
-
-                for (int i = 0; i < items.length(); i++) {
-                    JSONObject item = items.optJSONObject(i);
-
-                    if (item != null &&
-                            item.optLong("ID", -2L) == reminderId) {
-                        item.put("FIRED", true);
-                        prefs.edit()
-                                .putString(REMINDERS, items.toString())
-                                .apply();
-                        break;
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-
-        // Without notification permission, keep the saved reminder.
+        // Notification permission check
         if (Build.VERSION.SDK_INT >= 33 &&
                 context.checkSelfPermission(
                         "android.permission.POST_NOTIFICATIONS")
@@ -79,8 +56,10 @@ public class ReminderReceiver extends BroadcastReceiver {
                     CHANNEL_ID,
                     "VIPIN SERVICE CRM REMINDERS",
                     NotificationManager.IMPORTANCE_HIGH);
+
             channel.setDescription(
                     "AMC, PAYMENT AND SERVICE REMINDERS");
+
             manager.createNotificationChannel(channel);
         }
 
@@ -104,8 +83,14 @@ public class ReminderReceiver extends BroadcastReceiver {
                 PendingIntent.FLAG_IMMUTABLE);
 
         String message = customer;
-        if (!mobile.isEmpty()) message += " | " + mobile;
-        if (!details.isEmpty()) message += "\n" + details;
+
+        if (!mobile.isEmpty()) {
+            message += " | " + mobile;
+        }
+
+        if (!details.isEmpty()) {
+            message += "\n" + details;
+        }
 
         Notification.Builder builder;
 
@@ -129,6 +114,47 @@ public class ReminderReceiver extends BroadcastReceiver {
                 ? (int) (reminderId & 0x7fffffff)
                 : (int) System.currentTimeMillis();
 
-        manager.notify(notificationId, notification);
+        try {
+            manager.notify(notificationId, notification);
+
+            // Notification सफल होने के बाद ही FIRED करें।
+            // Reminder को कभी अपने आप DELETE नहीं करना है।
+            if (reminderId >= 0) {
+                markReminderFired(context, reminderId);
+            }
+
+        } catch (SecurityException ignored) {
+            // Permission न होने पर reminder saved रहेगा।
+        }
+    }
+
+    private void markReminderFired(Context context, long reminderId) {
+
+        SharedPreferences prefs =
+                context.getSharedPreferences(PREF, Context.MODE_PRIVATE);
+
+        try {
+            JSONArray items = new JSONArray(
+                    prefs.getString(REMINDERS, "[]"));
+
+            for (int i = 0; i < items.length(); i++) {
+
+                JSONObject item = items.optJSONObject(i);
+
+                if (item != null &&
+                        item.optLong("ID", -2L) == reminderId) {
+
+                    item.put("FIRED", true);
+
+                    prefs.edit()
+                            .putString(REMINDERS, items.toString())
+                            .apply();
+
+                    break;
+                }
+            }
+
+        } catch (Exception ignored) {
+        }
     }
 }
