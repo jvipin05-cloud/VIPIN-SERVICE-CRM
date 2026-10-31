@@ -18,10 +18,20 @@ public class ReminderBootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
 
-        if (intent == null ||
-                !Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
+        if (intent == null) return;
+
+        String action = intent.getAction();
+
+        if (!Intent.ACTION_BOOT_COMPLETED.equals(action) &&
+                !"android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
+                        .equals(action)) {
             return;
         }
+
+        rescheduleAll(context);
+    }
+
+    public static void rescheduleAll(Context context) {
 
         try {
             String saved = context.getSharedPreferences(
@@ -40,10 +50,8 @@ public class ReminderBootReceiver extends BroadcastReceiver {
             for (int i = 0; i < array.length(); i++) {
 
                 JSONObject item = array.optJSONObject(i);
-
                 if (item == null) continue;
 
-                // Completed or already fired reminders skip करें।
                 if (item.optBoolean("DONE", false) ||
                         item.optBoolean("FIRED", false)) {
                     continue;
@@ -52,10 +60,10 @@ public class ReminderBootReceiver extends BroadcastReceiver {
                 long id = item.optLong("ID", -1L);
                 long when = item.optLong("TIME", 0L);
 
-                if (id < 0 || when <= now) continue;
+                if (id < 0 || when <= 0) continue;
 
-                Intent reminderIntent =
-                        new Intent(context, ReminderReceiver.class);
+                Intent reminderIntent = new Intent(
+                        context, ReminderReceiver.class);
 
                 reminderIntent.putExtra("reminder_id", id);
                 reminderIntent.putExtra(
@@ -76,16 +84,30 @@ public class ReminderBootReceiver extends BroadcastReceiver {
                         PendingIntent.FLAG_UPDATE_CURRENT |
                                 PendingIntent.FLAG_IMMUTABLE);
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarm.setAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            when,
-                            pending);
-                } else {
-                    alarm.set(
-                            AlarmManager.RTC_WAKEUP,
-                            when,
-                            pending);
+                try {
+                    if (when <= now) {
+
+                        // Reminder time passed while phone was switched off.
+                        // Send it now; receiver checks FIRED and DONE.
+                        context.sendBroadcast(reminderIntent);
+
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+
+                        alarm.setAndAllowWhileIdle(
+                                AlarmManager.RTC_WAKEUP,
+                                when,
+                                pending);
+
+                    } else {
+
+                        alarm.set(
+                                AlarmManager.RTC_WAKEUP,
+                                when,
+                                pending);
+                    }
+
+                } catch (SecurityException e) {
+                    e.printStackTrace();
                 }
             }
 
