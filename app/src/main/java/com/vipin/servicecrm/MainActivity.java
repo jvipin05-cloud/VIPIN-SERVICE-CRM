@@ -1389,7 +1389,7 @@ private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
                     try { Bitmap logo = BitmapFactory.decodeResource(getResources(), logoId); if (logo != null) { c.drawBitmap(logo, null, new android.graphics.Rect(left+8, 17, left+67, 77), paint); logo.recycle(); } } catch (Exception ignored) { }
                 } else {
                     paint.setColor(cyan); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); c.drawCircle(left+37, 47, 26, paint); paint.setStyle(Paint.Style.FILL);
-                    paint.setTextColor(cyan); paint.setTextSize(25); paint.setTypeface(Typeface.DEFAULT_BOLD); c.drawText("V", left+29, 56, paint);
+                    paint.setColor(cyan); paint.setTextSize(25); paint.setTypeface(Typeface.DEFAULT_BOLD); c.drawText("V", left+29, 56, paint);
                 }
                 paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(23); c.drawText("VIPIN SERVICE CRM", left+82, 43, paint);
                 paint.setTextSize(13); c.drawText("MONTHLY / YEARLY SERVICE REPORT", left+83, 65, paint);
