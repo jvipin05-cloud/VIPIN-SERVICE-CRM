@@ -1,5 +1,5 @@
 package com.vipin.servicecrm;
-import android.provider.Settings;
+
 import android.app.Activity;
 import android.app.AlarmManager;
 import android.app.DatePickerDialog;
@@ -56,10 +56,6 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.TreeSet;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
-import android.graphics.pdf.PdfDocument;
 
 public class MainActivity extends Activity {
 
@@ -71,9 +67,8 @@ public class MainActivity extends Activity {
 
     private final String[] FIELDS = {
         "DATE", "AMC BILL NUMBER", "COLLECTION BILL NUMBER", "PRODUCT NAME", "AMC", "COLLECTION",
-        "CUSTOMER NAME", "MOBILE NUMBER", "ADDRESS", "SPARE PARTS",
-        "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
-        "PAYMENT MODE", "REMARKS"
+        "TOTAL AMOUNT", "SPARE PARTS", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT",
+        "CUSTOMER NAME", "MOBILE NUMBER", "ADDRESS", "PAYMENT MODE", "REMARKS"
     };
     private final String[] PAYMENTS = {"CASH", "UPI", "PS UPI", "RKS UPI"};
     private final String[] MONEY_FIELDS = {
@@ -307,8 +302,7 @@ public class MainActivity extends Activity {
     private int reminderRequestCode(long id) {
         return (int) (id & 0x7fffffff);
     }
-
-    private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
+private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
         long id = item.optLong("ID", 0L);
         Intent alarmIntent = new Intent(this, ReminderReceiver.class);
         alarmIntent.putExtra("reminder_id", id);
@@ -321,39 +315,17 @@ public class MainActivity extends Activity {
     }
 
     private void scheduleSavedReminder(JSONObject item) {
-    if (item == null) return;
-
-    if (item.optBoolean("DONE", false)
-            || item.optBoolean("FIRED", false)) {
-        return;
-    }
-
-    long when = item.optLong("TIME", 0);
-    if (when <= 0) return;
-
-    AlarmManager alarm =
-            (AlarmManager) getSystemService(ALARM_SERVICE);
-
-    if (alarm == null) return;
-
-    PendingIntent pending =
-            reminderPendingIntent(item, PendingIntent.FLAG_UPDATE_CURRENT);
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (alarm.canScheduleExactAlarms()) {
-            alarm.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP, when, pending);
+        if (item == null || item.optBoolean("DONE", false) || item.optBoolean("FIRED", false)) return;
+        long when = item.optLong("TIME", 0L);
+        if (when <= System.currentTimeMillis()) return;
+        AlarmManager alarm = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        if (alarm == null) return;
+        PendingIntent pending = reminderPendingIntent(item, PendingIntent.FLAG_UPDATE_CURRENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, when, pending);
         } else {
-            alarm.setAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP, when, pending);
+            alarm.set(AlarmManager.RTC_WAKEUP, when, pending);
         }
-    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        alarm.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP, when, pending);
-    } else {
-        alarm.setExact(
-                AlarmManager.RTC_WAKEUP, when, pending);
-    }
     }
 
     private void reschedulePendingReminders() {
@@ -424,7 +396,7 @@ public class MainActivity extends Activity {
                         toast("Current password गलत है");
                     } else if (newP.length() < 4 || !newP.getText().toString()
                             .equals(confirm.getText().toString())) {
-                                                toast("नया पासवर्ड जाँचें (कम से कम 4 अक्षर)");
+                        toast("नया पासवर्ड जाँचें (कम से कम 4 अक्षर)");
                     } else {
                         getSharedPreferences(PREF, MODE_PRIVATE).edit()
                                 .putString(PASSWORD, newP.getText().toString()).apply();
@@ -610,8 +582,7 @@ public class MainActivity extends Activity {
             }
             parent.addView(line);
         }
-    }
-
+                             }
     // OFFLINE CUSTOMER REMINDERS
     private void showReminderForm() {
         currentPage = "REMINDERS";
@@ -779,7 +750,6 @@ public class MainActivity extends Activity {
                     showReminderList();
                 }).show();
     }
-
     // ADD / EDIT RECORD
     private void showEntry() {
         currentPage = "ENTRY";
@@ -817,13 +787,13 @@ public class MainActivity extends Activity {
                     e.setOnClickListener(v -> pickDate(e));
                 } else {
                     e.setFilters(new InputFilter[]{new InputFilter.AllCaps()});
-                    if (i == 4 || i == 5 || i == 10 || i == 11 || i == 12 || i == 13)
+                    if (i == 4 || i == 5 || i == 6 || i == 8 || i == 9 || i == 10)
                         e.setInputType(8194);
-                    if (i == 7) e.setInputType(3);
-                    if (i == 8 || i == 9 || i == 15) {
+                    if (i == 12) e.setInputType(3);
+                    if (i == 7 || i == 13 || i == 15) {
                         e.setSingleLine(false);
                         e.setMinLines(1);
-                                                e.setMaxLines(3);
+                        e.setMaxLines(3);
                         e.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                                 | android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                                 | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
@@ -880,6 +850,7 @@ public class MainActivity extends Activity {
     private void scrollToInput(EditText field) {
         if (pageScroll == null || field == null) return;
 
+        // Move the whole active field group above the keyboard.
         int index = findInputIndex(field);
         final View target = index >= 0 && fieldGroups != null && fieldGroups[index] != null
                 ? fieldGroups[index] : field;
@@ -895,6 +866,7 @@ public class MainActivity extends Activity {
                 int targetTop = location[1];
                 int targetBottom = targetTop + target.getHeight();
 
+                // Keep a safe gap above the keyboard, including Samsung IME.
                 int safeTop = visible.top + dp(12);
                 int safeBottom = visible.bottom - dp(115);
                 int delta = 0;
@@ -911,6 +883,7 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) { }
         };
 
+        // Recheck after focus and after the keyboard has resized the window.
         pageScroll.post(reveal);
         pageScroll.postDelayed(reveal, 180);
         pageScroll.postDelayed(reveal, 420);
@@ -944,7 +917,7 @@ public class MainActivity extends Activity {
                 for (int j = 0; j < PAYMENTS.length; j++)
                     if (PAYMENTS[j].equals(value)) paymentSpinner.setSelection(j);
             } else if (inputs[i] != null) {
-                String value = i == 10 ? readMoneyField(r, "TOTAL AMOUNT") : r.optString(FIELDS[i]);
+                String value = i == 6 ? readMoneyField(r, "TOTAL AMOUNT") : r.optString(FIELDS[i]);
                 inputs[i].setText(i == 0 ? displayDate(value) : value);
             }
         }
@@ -1013,7 +986,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean validateAmounts() {
-        int[] indexes = {4, 5, 10, 11, 12, 13};
+        int[] indexes = {4, 5, 6, 8, 9, 10};
         for (int i : indexes) {
             String value = inputs[i].getText().toString().trim();
             if (!value.isEmpty()) {
@@ -1145,143 +1118,83 @@ public class MainActivity extends Activity {
         public void onNothingSelected(AdapterView<?> p) { }
     }
 
-    
-private void renderRecords() {
-    if (recordsLayout == null) return;
+    private void renderRecords() {
+        if (recordsLayout == null) return;
+        recordsLayout.removeAllViews();
+        String q = searchBox == null ? "" : searchBox.getText().toString().toLowerCase(Locale.ROOT).trim();
+        String month = monthSpinner == null ? "ALL MONTHS" : monthSpinner.getSelectedItem().toString();
+        String year = yearSpinner == null ? "ALL YEARS" : yearSpinner.getSelectedItem().toString();
+        double[] totals = new double[MONEY_FIELDS.length];
+        int shown = 0;
 
-    recordsLayout.removeAllViews();
+        for (int i = records.length() - 1; i >= 0; i--) {
+            JSONObject r = records.optJSONObject(i);
+            if (r == null || !matchesDate(r.optString("DATE"), month, year)) continue;
+            StringBuilder all = new StringBuilder();
+            for (String field : FIELDS) all.append(r.optString(field)).append(' ');
+            if (!all.toString().toLowerCase(Locale.ROOT).contains(q)) continue;
 
-    String q = searchBox == null ? "" :
-            searchBox.getText().toString().toLowerCase(Locale.ROOT).trim();
+            shown++;
+            for (int j = 0; j < MONEY_FIELDS.length; j++)
+                totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
 
-    String month = monthSpinner == null ? "ALL MONTHS" :
-            monthSpinner.getSelectedItem().toString();
+            final int index = i;
+            LinearLayout card = vertical();
+            card.setPadding(dp(12), dp(11), dp(12), dp(11));
+            card.setBackground(shape(Color.WHITE, 14, Color.rgb(218,224,233)));
+            TextView title = text(r.optString("CUSTOMER NAME") + " | "
+                    + displayDate(r.optString("DATE")), 15, navy, true);
+            card.addView(title);
+            for (String field : FIELDS) {
+                if ("DATE".equals(field) || "CUSTOMER NAME".equals(field)) continue;
+                String displayField = field;
+                if ("AMC BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (AMC)";
+                else if ("COLLECTION BILL NUMBER".equals(field)) displayField = "BILL NUMBER – (COLLECTION)";
+                TextView line = text(displayField + ": " + r.optString(field), 12, ink, true);
+                line.setPadding(0, dp(2), 0, dp(2));
+                card.addView(line);
+            }
 
-    String year = yearSpinner == null ? "ALL YEARS" :
-            yearSpinner.getSelectedItem().toString();
+            LinearLayout row1 = horizontal();
+            Button copy = smallButton("COPY TEXT");
+            Button edit = smallButton("EDIT");
+            Button del = smallButton("DELETE");
+            row1.addView(copy, new LinearLayout.LayoutParams(0, dp(42), 1));
+            row1.addView(edit, new LinearLayout.LayoutParams(0, dp(42), 1));
+            row1.addView(del, new LinearLayout.LayoutParams(0, dp(42), 1));
+            card.addView(row1);
 
-    double[] totals = new double[MONEY_FIELDS.length];
-    int shown = 0;
+            LinearLayout row2 = horizontal();
+            Button photos = smallButton("VIEW PHOTOS");
+            Button pdf = smallButton("OPEN PDF");
+            row2.addView(photos, new LinearLayout.LayoutParams(0, dp(42), 1));
+            row2.addView(pdf, new LinearLayout.LayoutParams(0, dp(42), 1));
+            card.addView(row2);
 
-    for (int i = records.length() - 1; i >= 0; i--) {
-        JSONObject r = records.optJSONObject(i);
+            copy.setOnClickListener(v -> copyRecord(r));
+            edit.setOnClickListener(v -> {
+                editing = index;
+                entryFromRecords = true;
+                showEntry();
+            });
+            del.setOnClickListener(v -> confirmDelete(index));
+            photos.setOnClickListener(v -> showPhotos(r));
+            pdf.setOnClickListener(v -> openSavedPDF(r));
 
-        if (r == null || !matchesDate(r.optString("DATE"), month, year))
-            continue;
-
-        StringBuilder all = new StringBuilder();
-        for (String field : FIELDS) {
-            all.append(r.optString(field)).append(' ');
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+            cp.topMargin = dp(9);
+            recordsLayout.addView(card, cp);
         }
 
-        if (!all.toString().toLowerCase(Locale.ROOT).contains(q))
-            continue;
-
-        shown++;
-
-        for (int j = 0; j < MONEY_FIELDS.length; j++) {
-            totals[j] += number(readMoneyField(r, MONEY_FIELDS[j]));
-        }
-
-        final int index = i;
-
-        LinearLayout card = vertical();
-        card.setPadding(dp(12), dp(11), dp(12), dp(11));
-        card.setBackground(shape(Color.WHITE, 14, Color.rgb(218,224,233)));
-
-        TextView title = text(
-                r.optString("CUSTOMER NAME") + " | " +
-                displayDate(r.optString("DATE")),
-                15, navy, true
-        );
-        card.addView(title);
-
-        for (String field : FIELDS) {
-            if ("DATE".equals(field) || "CUSTOMER NAME".equals(field))
-                continue;
-
-            String displayField = field;
-
-            if ("AMC BILL NUMBER".equals(field))
-                displayField = "BILL NUMBER – (AMC)";
-            else if ("COLLECTION BILL NUMBER".equals(field))
-                displayField = "BILL NUMBER – (COLLECTION)";
-
-            TextView line = text(
-                    displayField + ": " + r.optString(field),
-                    12, ink, true
-            );
-
-            line.setPadding(0, dp(2), 0, dp(2));
-            card.addView(line);
-        }
-
-        LinearLayout row1 = horizontal();
-
-        Button copy = smallButton("COPY TEXT");
-        Button edit = smallButton("EDIT");
-        Button del = smallButton("DELETE");
-
-        row1.addView(copy, new LinearLayout.LayoutParams(0, dp(42), 1));
-        row1.addView(edit, new LinearLayout.LayoutParams(0, dp(42), 1));
-        row1.addView(del, new LinearLayout.LayoutParams(0, dp(42), 1));
-
-        card.addView(row1);
-
-        LinearLayout row2 = horizontal();
-
-        Button photos = smallButton("VIEW PHOTOS");
-        Button pdf = smallButton("OPEN PDF");
-
-        row2.addView(photos, new LinearLayout.LayoutParams(0, dp(42), 1));
-        row2.addView(pdf, new LinearLayout.LayoutParams(0, dp(42), 1));
-
-        card.addView(row2);
-
-        copy.setOnClickListener(v -> copyRecord(r));
-
-        edit.setOnClickListener(v -> {
-            editing = index;
-            entryFromRecords = true;
-            showEntry();
-        });
-
-        del.setOnClickListener(v -> confirmDelete(index));
-        photos.setOnClickListener(v -> showPhotos(r));
-        pdf.setOnClickListener(v -> openSavedPDF(r));
-
-        LinearLayout.LayoutParams cp =
-                new LinearLayout.LayoutParams(-1, -2);
-
-        cp.topMargin = dp(9);
-        recordsLayout.addView(card, cp);
+        TextView count = text("MATCHING RECORDS: " + shown, 14, navy, true);
+        count.setPadding(0, dp(10), 0, dp(5));
+        recordsLayout.addView(count);
+        TextView totalTitle = text("FILTERED TOTALS", 18, navy, true);
+        totalTitle.setPadding(0, dp(8), 0, dp(4));
+        recordsLayout.addView(totalTitle);
+        addTotalsText(recordsLayout, totals);
+        if (shown == 0) recordsLayout.addView(text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false));
     }
-
-    TextView count = text(
-            "MATCHING RECORDS: " + shown,
-            14, navy, true
-    );
-
-    count.setPadding(0, dp(10), 0, dp(5));
-    recordsLayout.addView(count);
-
-    TextView totalTitle = text(
-            "FILTERED TOTALS",
-            18, navy, true
-    );
-
-    totalTitle.setPadding(0, dp(8), 0, dp(4));
-    recordsLayout.addView(totalTitle);
-
-    addTotalsText(recordsLayout, totals);
-
-    if (shown == 0) {
-        recordsLayout.addView(
-                text("कोई रिकॉर्ड नहीं मिला", 14, Color.GRAY, false)
-        );
-    }
-}
-
 
     private void addTotalsText(LinearLayout parent, double[] totals) {
         for (int i = 0; i < MONEY_FIELDS.length; i++) {
@@ -1303,7 +1216,6 @@ private void renderRecords() {
             toast("पूरा रिकॉर्ड COPY हो गया");
         }
     }
-
     private Button smallButton(String label) {
         Button b = new Button(this);
         b.setText(label);
@@ -1427,325 +1339,99 @@ private void renderRecords() {
 
     // OFFLINE PDF EXPORT
     private void exportMonthlyPDF() {
-    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-    intent.addCategory(Intent.CATEGORY_OPENABLE);
-    intent.setType("application/pdf");
-    intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM_REPORT.pdf");
-    startActivityForResult(intent, REQ_REPORT_PDF);
+        if (monthSpinner != null && monthSpinner.getSelectedItem() != null)
+            selectedReportMonth = monthSpinner.getSelectedItem().toString();
+        if (yearSpinner != null && yearSpinner.getSelectedItem() != null)
+            selectedReportYear = yearSpinner.getSelectedItem().toString();
+
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_REPORT_"
+                + selectedReportYear.replace(" ", "_") + "_"
+                + selectedReportMonth.replace(" ", "_") + ".pdf");
+        startActivityForResult(intent, REQ_REPORT_PDF);
     }
 
-private void writeMonthlyPDF(Uri uri) {
-    PdfDocument document = new PdfDocument();
-    OutputStream output = null;
-
-    final int pageWidth = 842;
-    final int pageHeight = 595;
-    final int left = 24;
-    final int right = 24;
-
-    final int navy = Color.rgb(8, 22, 55);
-    final int blue = Color.rgb(28, 91, 235);
-    final int cyan = Color.rgb(48, 190, 255);
-    final int paleBlue = Color.rgb(232, 242, 255);
-
-    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    try {
-        String monthArg = "ALL MONTHS".equals(selectedReportMonth)
-                ? "ALL" : selectedReportMonth;
-        String yearArg = "ALL YEARS".equals(selectedReportYear)
-                ? "ALL" : selectedReportYear;
-
-        double[] totals = calculateTotals(monthArg, yearArg);
-
-        ArrayList<JSONObject> selected = new ArrayList<>();
-
-        for (int i = 0; i < records.length(); i++) {
-            JSONObject r = records.optJSONObject(i);
-
-            if (r != null && matchesDate(
-                    r.optString("DATE"),
-                    selectedReportMonth,
-                    selectedReportYear)) {
-                selected.add(r);
-            }
-        }
-
-        final int[] pageNo = {0};
-        final float[] y = {0};
-        final PdfDocument.Page[] current = {null};
-
-        String[] headers = {
-                "SR", "DATE", "AMC BILL", "COLL. BILL",
-                "PRODUCT", "AMC", "COLLECT.",
-                "TOTAL AMT", "SPARE", "WARRANTY", "NET AMT"
-        };
-
-        float[] widths = {
-                28, 65, 72, 72, 90,
-                60, 70, 80, 75, 80, 102
-        };
-
-        Runnable drawTableHeader = () -> {
-            Canvas c = current[0].getCanvas();
-
-            paint.setColor(navy);
-            c.drawRoundRect(left, y[0], pageWidth - right,
-                    y[0] + 25, 5, 5, paint);
-
-            paint.setColor(Color.WHITE);
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
-            paint.setTextSize(7);
-
-            float x = left;
-            for (int i = 0; i < headers.length; i++) {
-                c.drawText(headers[i], x + 3, y[0] + 16, paint);
-                x += widths[i];
-            }
-
-            y[0] += 25;
-        };
-
-        Runnable newPage = () -> {
-            if (current[0] != null) {
-                document.finishPage(current[0]);
-            }
-
-            PdfDocument.PageInfo info =
-                    new PdfDocument.PageInfo.Builder(
-                            pageWidth, pageHeight, ++pageNo[0])
-                            .create();
-
-            current[0] = document.startPage(info);
-
-            Canvas c = current[0].getCanvas();
-            c.drawColor(Color.WHITE);
-
-            paint.setColor(navy);
-            c.drawRoundRect(left, 18, pageWidth - right,
-                    88, 14, 14, paint);
-
-            int logoId = getResources().getIdentifier(
-                    "vipin_service_crm_icon_512",
-                    "drawable", getPackageName());
-
-            if (logoId != 0) {
-                try {
-                    Bitmap logo = BitmapFactory.decodeResource(
-                            getResources(), logoId);
-
-                    if (logo != null) {
-                        android.graphics.Rect dst =
-                                new android.graphics.Rect(
-                                        left + 12, 24,
-                                        left + 72, 82);
-
-                        c.drawBitmap(logo, null, dst, paint);
-                        logo.recycle();
-                    }
-                } catch (Exception ignored) { }
-            }
-
-            paint.setColor(Color.WHITE);
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
-            paint.setTextSize(18);
-            c.drawText("VIPIN SERVICE CRM",
-                    left + 82, 47, paint);
-
-            paint.setTypeface(Typeface.DEFAULT);
-            paint.setTextSize(9);
-            c.drawText("SERVICE  •  COLLECTION  •  RECORDS",
-                    left + 83, 64, paint);
-
-            paint.setTextSize(8);
-            c.drawText("MONTHLY / YEARLY REPORT",
-                    left + 83, 78, paint);
-
-            paint.setColor(navy);
-            paint.setTextSize(8);
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
-            c.drawText("PAGE " + pageNo[0],
-                    pageWidth - right - 42, 104, paint);
-
-            y[0] = 112;
-        };
-
-        newPage.run();
-
-        Canvas canvas = current[0].getCanvas();
-
-        paint.setColor(navy);
-        paint.setTypeface(Typeface.DEFAULT_BOLD);
-        paint.setTextSize(10);
-
-        canvas.drawText(
-                "REPORT PERIOD: " + selectedReportYear
-                        + " / " + selectedReportMonth,
-                left, y[0], paint);
-
-        y[0] += 14;
-
-        String[] summaryLabels = {
-                "AMC", "COLLECTION", "TOTAL AMOUNT",
-                "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"
-        };
-
-        int gap = 7;
-        int tileW = (pageWidth - left - right - gap * 5) / 6;
-        int tileH = 39;
-
-        for (int i = 0; i < 6; i++) {
-            float x = left + i * (tileW + gap);
-
-            paint.setColor(i % 2 == 0 ? blue : navy);
-            canvas.drawRoundRect(
-                    x, y[0], x + tileW, y[0] + tileH,
-                    6, 6, paint);
-
-            paint.setColor(Color.WHITE);
-            paint.setTypeface(Typeface.DEFAULT_BOLD);
-            paint.setTextSize(7);
-            canvas.drawText(summaryLabels[i],
-                    x + 5, y[0] + 13, paint);
-
-            paint.setTextSize(10);
-            canvas.drawText(money(totals[i]),
-                    x + 5, y[0] + 29, paint);
-        }
-
-        y[0] += tileH + 12;
-
-        drawTableHeader.run();
-
-        for (int i = 0; i < selected.size(); i++) {
-
-            if (y[0] + 22 > pageHeight - 48) {
-                newPage.run();
-                canvas = current[0].getCanvas();
-                drawTableHeader.run();
-            }
-
-            JSONObject r = selected.get(i);
-
-            String[] values = {
-                    String.valueOf(i + 1),
-                    displayDate(r.optString("DATE")),
-                    r.optString("AMC BILL NUMBER", "-"),
-                    r.optString("COLLECTION BILL NUMBER", "-"),
-                    r.optString("PRODUCT NAME", "-"),
-                    money(number(readMoneyField(r, "AMC"))),
-                    money(number(readMoneyField(r, "COLLECTION"))),
-                    money(number(readMoneyField(r, "TOTAL AMOUNT"))),
-                    money(number(readMoneyField(r, "SPARE AMOUNT"))),
-                    money(number(readMoneyField(r, "WARRANTY AMOUNT"))),
-                    money(number(readMoneyField(r, "NET AMOUNT")))
-            };
-
-            float rowTop = y[0];
-
-            paint.setColor(i % 2 == 0 ? paleBlue : Color.WHITE);
-            canvas.drawRect(left, rowTop,
-                    pageWidth - right, rowTop + 22, paint);
-
-            paint.setColor(Color.rgb(190, 205, 225));
-            paint.setStyle(Paint.Style.STROKE);
-            paint.setStrokeWidth(0.5f);
-            canvas.drawRect(left, rowTop,
-                    pageWidth - right, rowTop + 22, paint);
-
-            float x = left;
-
-            for (int k = 0; k < values.length; k++) {
-
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(navy);
-                paint.setTypeface(
-                        k == 7 || k == 10
-                                ? Typeface.DEFAULT_BOLD
-                                : Typeface.DEFAULT);
-
-                paint.setTextSize(7);
-
-                String value = values[k] == null ? "" : values[k];
-
-                while (value.length() > 1
-                        && paint.measureText(value) > widths[k] - 7) {
-                    value = value.substring(0, value.length() - 2) + "..";
-                }
-
-                canvas.drawText(value, x + 3, rowTop + 14, paint);
-
-                x += widths[k];
-            }
-
-            y[0] += 22;
-        }
-
-        if (selected.isEmpty()) {
-            paint.setColor(Color.GRAY);
-            paint.setTextSize(11);
-            paint.setTypeface(Typeface.DEFAULT);
-
-            canvas.drawText(
-                    "NO RECORDS FOUND FOR THIS PERIOD",
-                    left, y[0] + 20, paint);
-
-            y[0] += 30;
-        }
-
-        y[0] += 8;
-
-        paint.setColor(navy);
-        paint.setTypeface(Typeface.DEFAULT_BOLD);
-        paint.setTextSize(12);
-
-        canvas.drawText(
-                "TOTAL RECORDS: " + selected.size(),
-                left, y[0] + 18, paint);
-
-        y[0] += 28;
-
-        paint.setColor(blue);
-        paint.setTextSize(9);
-        paint.setTypeface(Typeface.DEFAULT_BOLD);
-
-        canvas.drawText(
-                "VIPIN SERVICE CRM  |  OFFLINE REPORT",
-                left, pageHeight - 20, paint);
-
-        if (current[0] != null) {
-            document.finishPage(current[0]);
-        }
-
-        output = getContentResolver().openOutputStream(uri);
-
-        if (output == null) {
-            throw new IOException("PDF FILE OPEN ERROR");
-        }
-
-        document.writeTo(output);
-        output.flush();
-
-        toast("REPORT PDF SAVED SUCCESSFULLY");
-
-    } catch (Exception e) {
-
-        Toast.makeText(
-                this,
-                "PDF ERROR: " + e.getMessage(),
-                Toast.LENGTH_LONG
-        ).show();
-
-    } finally {
-
+    private void writeMonthlyPDF(Uri uri) {
+        PdfDocument document = new PdfDocument();
+        OutputStream output = null;
+        final int pageWidth = 842, pageHeight = 595; // landscape A4-like page
+        final int left = 22, right = 22;
+        final int darkBlue = Color.rgb(8, 22, 55);
+        final int blue = Color.rgb(30, 125, 235);
+        final int paleBlue = Color.rgb(232, 242, 255);
+        final int cyan = Color.rgb(48, 190, 255);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         try {
-            if (output != null) output.close();
-        } catch (Exception ignored) { }
-
-        document.close();
+            String monthArg = "ALL MONTHS".equals(selectedReportMonth) ? "ALL" : selectedReportMonth;
+            String yearArg = "ALL YEARS".equals(selectedReportYear) ? "ALL" : selectedReportYear;
+            double[] totals = calculateTotals(monthArg, yearArg);
+            ArrayList<JSONObject> selected = new ArrayList<>();
+            for (int i = 0; i < records.length(); i++) {
+                JSONObject r = records.optJSONObject(i);
+                if (r != null && matchesDate(r.optString("DATE"), selectedReportMonth, selectedReportYear)) selected.add(r);
+            }
+            final int[] pageNo = {0};
+            final float[] y = {0};
+            final PdfDocument.Page[] current = {null};
+            final String[] headers = {"DATE", "AMC BILL NO", "COLLECTION BILL NO", "PRODUCT NAME", "AMC", "COLLECTION", "TOTAL AMOUNT", "SPARE PARTS", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"};
+            final float[] widths = {55, 70, 78, 85, 48, 58, 70, 82, 68, 78, 66};
+            Runnable newPage = () -> {
+                if (current[0] != null) document.finishPage(current[0]);
+                PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(pageWidth, pageHeight, ++pageNo[0]).create();
+                current[0] = document.startPage(info);
+                Canvas c = current[0].getCanvas();
+                c.drawColor(Color.WHITE);
+                paint.setColor(darkBlue); c.drawRoundRect(left, 12, pageWidth-right, 82, 12, 12, paint);
+                int logoId = getResources().getIdentifier("vipin_service_crm_icon_512", "drawable", getPackageName());
+                if (logoId != 0) {
+                    try { Bitmap logo = BitmapFactory.decodeResource(getResources(), logoId); if (logo != null) { c.drawBitmap(logo, null, new android.graphics.Rect(left+8, 17, left+67, 77), paint); logo.recycle(); } } catch (Exception ignored) { }
+                } else {
+                    paint.setColor(cyan); paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); c.drawCircle(left+37, 47, 26, paint); paint.setStyle(Paint.Style.FILL);
+                    paint.setTextColor(cyan); paint.setTextSize(25); paint.setTypeface(Typeface.DEFAULT_BOLD); c.drawText("V", left+29, 56, paint);
+                }
+                paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(23); c.drawText("VIPIN SERVICE CRM", left+82, 43, paint);
+                paint.setTextSize(13); c.drawText("MONTHLY / YEARLY SERVICE REPORT", left+83, 65, paint);
+                paint.setTextSize(10); c.drawText("PERIOD: " + selectedReportMonth + " / " + selectedReportYear, pageWidth-170, 55, paint);
+                paint.setColor(darkBlue); paint.setTextSize(8); c.drawText("PAGE " + pageNo[0], pageWidth-right-35, 96, paint);
+                y[0] = 104;
+            };
+            newPage.run();
+            // six summary boxes, all totals read from the same saved CRM records
+            String[] summaryLabels = {"AMC", "COLLECTION", "TOTAL AMOUNT", "SPARE AMOUNT", "WARRANTY AMOUNT", "NET AMOUNT"};
+            float gap = 7, tileW = (pageWidth-left-right-gap*5)/6f, tileH = 42;
+            for (int i=0;i<6;i++) {
+                float x=left+i*(tileW+gap);
+                paint.setColor(new int[]{Color.rgb(170,220,250),Color.rgb(180,245,220),Color.rgb(255,220,170),Color.rgb(220,205,250),Color.rgb(250,195,210),Color.rgb(170,230,245)}[i]);
+                current[0].getCanvas().drawRoundRect(x,y[0],x+tileW,y[0]+tileH,5,5,paint);
+                paint.setColor(darkBlue); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(8); current[0].getCanvas().drawText(summaryLabels[i],x+5,y[0]+14,paint);
+                paint.setTextSize(11); current[0].getCanvas().drawText(money(totals[i]),x+5,y[0]+32,paint);
+            }
+            y[0]+=tileH+12;
+            Canvas canvas=current[0].getCanvas();
+            float tableW=0; for(float w:widths)tableW+=w;
+            paint.setColor(darkBlue); canvas.drawRect(left,y[0],left+tableW,y[0]+30,paint);
+            float x=left; paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(7);
+            for(int i=0;i<headers.length;i++){ canvas.drawText(headers[i],x+3,y[0]+18,paint); x+=widths[i]; }
+            y[0]+=30;
+            for(int i=0;i<selected.size();i++) {
+                if(y[0]+23>pageHeight-38) { newPage.run(); canvas=current[0].getCanvas(); paint.setColor(darkBlue); canvas.drawRect(left,y[0],left+tableW,y[0]+25,paint); x=left; paint.setColor(Color.WHITE); paint.setTextSize(7); for(int k=0;k<headers.length;k++){canvas.drawText(headers[k],x+3,y[0]+16,paint);x+=widths[k];} y[0]+=25; }
+                JSONObject r=selected.get(i); String[] vals={displayDate(r.optString("DATE")),r.optString("AMC BILL NUMBER"),r.optString("COLLECTION BILL NUMBER"),r.optString("PRODUCT NAME"),money(number(readMoneyField(r,"AMC"))),money(number(readMoneyField(r,"COLLECTION"))),money(number(readMoneyField(r,"TOTAL AMOUNT"))),r.optString("SPARE PARTS"),money(number(readMoneyField(r,"SPARE AMOUNT"))),money(number(readMoneyField(r,"WARRANTY AMOUNT"))),money(number(readMoneyField(r,"NET AMOUNT")))};
+                paint.setColor(i%2==0?paleBlue:Color.WHITE); canvas.drawRect(left,y[0],left+tableW,y[0]+23,paint);
+                paint.setColor(Color.rgb(170,190,215)); paint.setStyle(Paint.Style.STROKE); canvas.drawRect(left,y[0],left+tableW,y[0]+23,paint); x=left; for(float w:widths){x+=w;canvas.drawLine(x,y[0],x,y[0]+23,paint);} paint.setStyle(Paint.Style.FILL);
+                x=left; paint.setColor(darkBlue); paint.setTypeface(Typeface.DEFAULT); paint.setTextSize(7);
+                for(int k=0;k<vals.length;k++){String v=vals[k]==null?"":vals[k]; if(v.length()>14)v=v.substring(0,13)+"…"; canvas.drawText(v,x+3,y[0]+15,paint);x+=widths[k];}
+                y[0]+=23;
+            }
+            if(selected.isEmpty()){paint.setColor(Color.GRAY);paint.setTextSize(10);canvas.drawText("NO RECORDS FOUND FOR THIS PERIOD",left,y[0]+18,paint);y[0]+=24;}
+            y[0]+=10; paint.setColor(darkBlue); canvas.drawRoundRect(left,y[0],left+tableW,y[0]+25,5,5,paint); paint.setColor(Color.WHITE); paint.setTypeface(Typeface.DEFAULT_BOLD); paint.setTextSize(11); canvas.drawText("TOTAL RECORDS: " + selected.size(),left+12,y[0]+17,paint);
+            paint.setColor(blue); canvas.drawRect(0,pageHeight-22,pageWidth,pageHeight,paint); paint.setColor(Color.WHITE); paint.setTextSize(8); paint.setTypeface(Typeface.DEFAULT); canvas.drawText("Generated by VIPIN SERVICE CRM - OFFLINE REPORT",left,pageHeight-8,paint);
+            if(current[0]!=null)document.finishPage(current[0]);
+            output=getContentResolver().openOutputStream(uri); if(output==null)throw new IOException("PDF FILE OPEN ERROR"); document.writeTo(output); output.flush(); toast("REPORT PDF SAVED SUCCESSFULLY");
+        } catch(Exception e){Toast.makeText(this,"PDF ERROR: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+        finally{try{if(output!=null)output.close();}catch(Exception ignored){} document.close();}
     }
-}
-
 
     // CSV EXPORT
     private void exportCSV() {
@@ -1821,7 +1507,4 @@ private void writeMonthlyPDF(Uri uri) {
     @Override public void onBackPressed() {
         goBack();
     }
-}               
-
-    
-    
+}
