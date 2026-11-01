@@ -1442,39 +1442,57 @@ private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
         startActivityForResult(intent, REQ_EXPORT);
     }
 
-    private void writeCSV(Uri uri) {
-        try {
-            OutputStream out = getContentResolver().openOutputStream(uri);
-            if (out == null) throw new IOException("File open failed");
-            OutputStreamWriter writer = new OutputStreamWriter(out, "UTF-8");
+    
+private void writeCSV(Uri uri) {
+    try {
+        OutputStream out = getContentResolver().openOutputStream(uri);
+        if (out == null) throw new IOException("File open failed");
+
+        try (OutputStreamWriter writer =
+                new OutputStreamWriter(out, "UTF-8")) {
+
             writer.write("\uFEFF");
+
+            // HEADER
             for (int i = 0; i < FIELDS.length; i++) {
                 if (i > 0) writer.write(",");
                 writer.write(csv(FIELDS[i]));
             }
-            writer.write("\n");
+            writer.write("\r\n");
+
+            // RECORDS
             for (int i = 0; i < records.length(); i++) {
                 JSONObject r = records.optJSONObject(i);
+
                 for (int j = 0; j < FIELDS.length; j++) {
                     if (j > 0) writer.write(",");
-                    String value = r == null ? "" : r.optString(FIELDS[j]);
-                    if (j == 0) value = displayDate(value);
+
+                    String value = r == null
+                            ? ""
+                            : r.optString(FIELDS[j], "");
+
+                    if (j == 0) {
+                        value = displayDate(value);
+                    }
+
                     writer.write(csv(value));
                 }
-                writer.write("\n");
-            }
-            writer.flush();
-            writer.close();
-            Toast.makeText(this, "CSV FILE SAVED", Toast.LENGTH_LONG).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Export error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
 
-    private String csv(String value) {
-        if (value == null) value = "";
-        return "\"" + value.replace("\"", "\"\"") + "\"";
+                writer.write("\r\n");
+            }
+        }
+
+        Toast.makeText(this,
+                "CSV FILE SAVED",
+                Toast.LENGTH_LONG).show();
+
+    } catch (Exception e) {
+        Toast.makeText(this,
+                "Export error: " + e.getMessage(),
+                Toast.LENGTH_LONG).show();
     }
+}
+
 
     // NAVIGATION
     private void goBack() {
