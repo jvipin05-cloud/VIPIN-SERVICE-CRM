@@ -1494,6 +1494,21 @@ private void writeCSV(Uri uri) {
 }
 
 
+private String csv(String value) {
+    if (value == null) value = "";
+
+    value = value.replace("\"", "\"\"");
+
+    if (value.contains(",") ||
+        value.contains("\"") ||
+        value.contains("\n") ||
+        value.contains("\r")) {
+        return "\"" + value + "\"";
+    }
+
+    return value;
+}
+
     // NAVIGATION
     private void goBack() {
         if ("ENTRY".equals(currentPage)) {
