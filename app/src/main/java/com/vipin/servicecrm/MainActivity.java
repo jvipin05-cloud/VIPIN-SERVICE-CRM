@@ -965,25 +965,60 @@ private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
                 + ((pdfUri == null || pdfUri.isEmpty()) ? "NOT ATTACHED" : "ATTACHED");
     }
 
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
-        if (requestCode == REQ_EXPORT) {
-            writeCSV(uri);
-            return;
-        }
-        if (requestCode == REQ_REPORT_PDF) {
-            writeMonthlyPDF(uri);
-            return;
-        }
+    @Override
+protected void onActivityResult(int requestCode,
+        int resultCode, Intent data) {
+
+    super.onActivityResult(requestCode, resultCode, data);
+
+    if (resultCode != RESULT_OK || data == null ||
+            data.getData() == null) return;
+
+    Uri uri = data.getData();
+
+    if (requestCode == REQ_EXPORT) {
+
         try {
-            getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        } catch (Exception ignored) { }
-        if (requestCode == REQ_PHOTO) photoUris[photoSlot] = uri.toString();
-        else if (requestCode == REQ_PDF) pdfUri = uri.toString();
-        if (statusText != null) statusText.setText(attachmentStatus());
+            int flags = data.getFlags() &
+                    (Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+            getContentResolver().takePersistableUriPermission(
+                    uri, flags);
+
+            getSharedPreferences("CSV_EXPORT_PREFS", MODE_PRIVATE)
+                    .edit()
+                    .putString("csv_uri", uri.toString())
+                    .apply();
+
+            writeCSV(uri);
+
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Export error: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+        }
+        return;
     }
+
+    if (requestCode == REQ_REPORT_PDF) {
+        writeMonthlyPDF(uri);
+        return;
+    }
+
+    try {
+        getContentResolver().takePersistableUriPermission(
+                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+    } catch (Exception ignored) { }
+
+    if (requestCode == REQ_PHOTO)
+        photoUris[photoSlot] = uri.toString();
+    else if (requestCode == REQ_PDF)
+        pdfUri = uri.toString();
+
+    if (statusText != null)
+        statusText.setText(attachmentStatus());
+}
 
     private boolean validateAmounts() {
         int[] indexes = {4, 5, 6, 8, 9, 10};
@@ -1435,17 +1470,33 @@ private PendingIntent reminderPendingIntent(JSONObject item, int flags) {
 
     // CSV EXPORT
     private void exportCSV() {
-        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("text/csv");
-        intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
-        startActivityForResult(intent, REQ_EXPORT);
+    android.content.SharedPreferences prefs =
+            getSharedPreferences("CSV_EXPORT_PREFS", MODE_PRIVATE);
+
+    String savedUri = prefs.getString("csv_uri", null);
+
+    if (savedUri != null) {
+        try {
+            Uri uri = Uri.parse(savedUri);
+            writeCSV(uri);
+            return;
+        } catch (Exception e) {
+            prefs.edit().remove("csv_uri").apply();
+        }
     }
 
+    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+    intent.addCategory(Intent.CATEGORY_OPENABLE);
+    intent.setType("text/csv");
+    intent.putExtra(Intent.EXTRA_TITLE, "VIPIN_SERVICE_CRM.csv");
+    startActivityForResult(intent, REQ_EXPORT);
+    }
     
 private void writeCSV(Uri uri) {
     try {
-        OutputStream out = getContentResolver().openOutputStream(uri);
+        OutputStream out =
+                getContentResolver().openOutputStream(uri, "wt");
+
         if (out == null) throw new IOException("File open failed");
 
         try (OutputStreamWriter writer =
@@ -1453,46 +1504,37 @@ private void writeCSV(Uri uri) {
 
             writer.write("\uFEFF");
 
-            // HEADER
             for (int i = 0; i < FIELDS.length; i++) {
                 if (i > 0) writer.write(",");
                 writer.write(csv(FIELDS[i]));
             }
             writer.write("\r\n");
 
-            // RECORDS
             for (int i = 0; i < records.length(); i++) {
                 JSONObject r = records.optJSONObject(i);
 
                 for (int j = 0; j < FIELDS.length; j++) {
                     if (j > 0) writer.write(",");
 
-                    String value = r == null
-                            ? ""
-                            : r.optString(FIELDS[j], "");
+                    String value = r == null ? "" :
+                            r.optString(FIELDS[j], "");
 
-                    if (j == 0) {
-                        value = displayDate(value);
-                    }
+                    if (j == 0) value = displayDate(value);
 
                     writer.write(csv(value));
                 }
-
                 writer.write("\r\n");
             }
         }
 
-        Toast.makeText(this,
-                "CSV FILE SAVED",
+        Toast.makeText(this, "EXCEL FILE UPDATED",
                 Toast.LENGTH_LONG).show();
 
     } catch (Exception e) {
-        Toast.makeText(this,
-                "Export error: " + e.getMessage(),
+        Toast.makeText(this, "Export error: " + e.getMessage(),
                 Toast.LENGTH_LONG).show();
     }
 }
-
 
 private String csv(String value) {
     if (value == null) value = "";
